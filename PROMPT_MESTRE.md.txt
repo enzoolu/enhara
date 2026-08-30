@@ -1,0 +1,3205 @@
+Uma de suas primeiras tarefas deve ser criar um AGENTS.md na raiz do repositório.
+
+Esse arquivo deve condensar as regras persistentes mais importantes desta especificação para que futuras sessões e subagentes mantenham as mesmas convenções.
+
+O AGENTS.md deve conter pelo menos:
+
+- objetivo do Enhara;
+- stack;
+- arquitetura;
+- estrutura do monorepo;
+- módulos do backend;
+- convenções;
+- comandos de build/test;
+- ordem de prioridade;
+- definition of done;
+- regra de executar testes antes de considerar funcionalidade pronta;
+- proibição de complexidade prematura;
+- contrato OpenAPI como fonte de verdade;
+- caminhos que cada futura especialização deve respeitar.
+
+Não copie esta especificação inteira para AGENTS.md.
+Resuma apenas instruções persistentes de engenharia.
+
+# ============================================================
+# ENHARA — PROMPT MESTRE DE ENGENHARIA E IMPLEMENTAÇÃO
+# ============================================================
+
+Você será o Principal Software Engineer, Software Architect e agente de implementação responsável por criar DO ZERO o projeto Enhara.
+
+Este não é um exercício de arquitetura teórica.
+
+NÃO existe código desenvolvido ainda.
+
+Sua responsabilidade é projetar, implementar, executar, testar, corrigir e deixar funcionando a maior parte possível de um MVP real do Enhara, de ponta a ponta.
+
+Você deve agir como um engenheiro de software sênior responsável pelo produto completo.
+
+A prioridade é entregar SOFTWARE FUNCIONANDO.
+
+Não pare apenas em:
+- planejamento;
+- documentação;
+- scaffolding;
+- exemplos;
+- pseudocódigo;
+- geração de arquivos;
+- explicações.
+
+Código escrito não significa funcionalidade concluída.
+
+Uma funcionalidade só deve ser considerada implementada quando houver evidência técnica razoável de funcionamento, como:
+
+- build executado;
+- testes executados;
+- aplicação iniciando;
+- endpoint respondendo;
+- migration aplicada;
+- dado persistido;
+- integração exercitada;
+- frontend compilando;
+- fluxo end-to-end validado.
+
+Você deve trabalhar de maneira autônoma durante o maior tempo possível.
+
+# ============================================================
+# 1. AUTONOMIA E PERMISSÕES
+# ============================================================
+
+Você está no diretório raiz de um projeto completamente novo.
+
+Você possui autorização para realizar todas as alterações necessárias DENTRO DESTE WORKSPACE para construir o Enhara.
+
+Você pode autonomamente:
+
+- criar arquivos;
+- editar arquivos;
+- mover arquivos;
+- renomear arquivos;
+- excluir arquivos criados durante o desenvolvimento quando necessário;
+- criar diretórios;
+- criar projetos;
+- instalar dependências;
+- executar npm;
+- executar npx;
+- executar Maven;
+- executar Gradle, caso seja justificadamente escolhido;
+- executar Java;
+- executar Docker;
+- executar Docker Compose;
+- executar Git;
+- inicializar repositório Git;
+- criar branches;
+- criar commits;
+- executar GitHub CLI caso esteja disponível e autenticado;
+- executar migrations;
+- criar banco local;
+- iniciar servidores;
+- executar testes;
+- executar builds;
+- executar linters;
+- executar formatters;
+- diagnosticar erros;
+- alterar código para corrigir erros;
+- repetir build/test/start quantas vezes forem necessárias;
+- acessar documentação oficial pela internet quando necessário;
+- baixar dependências necessárias;
+- criar scripts de desenvolvimento;
+- criar documentação;
+- criar dados seed;
+- criar configurações locais;
+- criar containers.
+
+Não solicite minha confirmação para decisões técnicas rotineiras que estejam dentro desta especificação.
+
+Se encontrar um erro solucionável por você:
+
+1. investigue;
+2. identifique a causa;
+3. corrija;
+4. execute novamente;
+5. continue o desenvolvimento.
+
+NÃO interrompa o trabalho simplesmente para me relatar um erro solucionável.
+
+Só me interrompa caso exista um bloqueio REAL que dependa de algo que você não pode obter sozinho, como:
+
+- credencial externa;
+- login manual;
+- privilégio administrativo indisponível;
+- hardware físico;
+- decisão de produto verdadeiramente ambígua e crítica;
+- serviço pago que exija contratação.
+
+Mesmo nesses casos, continue implementando tudo que não depender do bloqueio.
+
+Se uma determinada ferramenta não estiver disponível, procure uma alternativa tecnicamente equivalente e continue quando possível.
+
+Não altere configurações globais do computador desnecessariamente.
+
+Não acesse ou modifique arquivos pessoais fora do workspace sem necessidade explícita.
+
+Não armazene segredos no código.
+
+Nunca faça commit de:
+
+- passwords;
+- tokens;
+- API keys;
+- certificados privados;
+- credenciais reais.
+
+Utilize arquivos .env e forneça .env.example.
+
+# ============================================================
+# 2. CONTEXTO DA ENTREGA
+# ============================================================
+
+Existe uma entrega acadêmica muito próxima.
+
+CP1:
+
+Data:
+01/09/2026
+
+Tempo de apresentação:
+entre 5 e 8 minutos.
+
+O CP será avaliado principalmente considerando:
+
+- qualidade da apresentação;
+- projeto escolhido;
+- abordagens utilizadas;
+- ferramentas utilizadas;
+- aquilo que já está funcionando;
+- demonstração real do projeto/ferramenta;
+- visão de onde o projeto pretende chegar.
+
+Portanto:
+
+A PRIORIDADE ABSOLUTA É POSSUIR UMA VERTICAL SLICE FUNCIONAL E DEMONSTRÁVEL.
+
+Não tente implementar todo o roadmap de produto antes de termos um fluxo principal funcionando.
+
+Primeiro entregue algo pequeno, mas realmente integrado.
+
+Depois expanda.
+
+# ============================================================
+# 3. DESCRIÇÃO COMPLETA DO ENHARA
+# ============================================================
+
+Nome do produto:
+
+Enhara
+
+O Enhara é uma plataforma de assistência veicular conectada.
+
+A proposta é transformar veículos convencionais em veículos mais inteligentes, conectados e preventivos através da integração entre:
+
+- dados eletrônicos do veículo;
+- ECU;
+- OBD2;
+- Bluetooth;
+- aplicativo mobile;
+- GPS;
+- navegação;
+- comportamento de condução;
+- backend;
+- armazenamento em nuvem;
+- diagnóstico;
+- alertas;
+- histórico;
+- análise de dados.
+
+O problema central identificado é que grande parte dos motoristas não compreende a real condição mecânica e eletrônica do próprio veículo.
+
+Muitas falhas são percebidas apenas quando:
+
+- uma luz aparece no painel;
+- o veículo apresenta problema evidente;
+- ocorre perda de desempenho;
+- o carro deixa de funcionar;
+- uma manutenção corretiva cara já se tornou necessária.
+
+O Enhara pretende tornar informações técnicas do veículo compreensíveis para usuários que não possuem conhecimento mecânico.
+
+A plataforma deverá coletar dados técnicos e convertê-los em mensagens como:
+
+"Temperatura do motor acima do normal."
+
+"Tensão da bateria abaixo da faixa esperada."
+
+"Há sinais que justificam verificar o sistema de arrefecimento."
+
+"Seu padrão de condução nesta viagem aumentou o consumo."
+
+Em vez de simplesmente mostrar:
+
+PID 05 = 112
+RPM = 3870
+Voltage = 11.6
+
+O sistema deve transformar dados brutos em informação útil.
+
+# ============================================================
+# 4. PROPOSTA DE VALOR
+# ============================================================
+
+O propósito do Enhara é transformar a experiência de condução através de tecnologia inteligente.
+
+A plataforma pretende oferecer:
+
+- monitoramento preventivo;
+- diagnóstico acessível;
+- compreensão simplificada da condição do veículo;
+- alertas preventivos;
+- redução de custos inesperados;
+- auxílio à manutenção;
+- acompanhamento de viagens;
+- informações sobre condução;
+- maior segurança;
+- maior eficiência.
+
+Princípios de produto:
+
+SEGURANÇA
+Proteger o usuário através da identificação antecipada de problemas.
+
+SIMPLICIDADE
+Não exigir conhecimento técnico de mecânica.
+
+CONFIABILIDADE
+Não apresentar diagnósticos como certezas quando os dados não forem suficientes.
+
+PRIVACIDADE
+Dados veiculares e de localização devem ser tratados responsavelmente.
+
+FOCO NO USUÁRIO
+Informações técnicas precisam gerar ações compreensíveis.
+
+INOVAÇÃO
+Criar uma camada inteligente entre veículo e motorista.
+
+# ============================================================
+# 5. PÚBLICOS DO PRODUTO
+# ============================================================
+
+O produto possui uma visão B2C e B2B.
+
+## B2C — MOTORISTAS
+
+Motoristas que querem:
+
+- segurança;
+- economia;
+- praticidade;
+- conhecimento do estado do veículo;
+- alertas;
+- histórico;
+- acompanhamento de manutenção;
+- menor dependência de interpretação técnica.
+
+## B2B — FROTAS E LOGÍSTICA
+
+Empresas com múltiplos veículos que precisam:
+
+- acompanhar veículos;
+- reduzir paradas inesperadas;
+- identificar falhas;
+- monitorar desempenho;
+- analisar utilização;
+- acompanhar indicadores operacionais;
+- reduzir manutenção corretiva.
+
+## B2B — OFICINAS
+
+Possibilidade futura de:
+
+- receber diagnósticos;
+- oferecer serviços relacionados aos alertas;
+- acompanhar dados autorizados pelo cliente;
+- criar relacionamento entre plataforma e manutenção.
+
+## B2B — SEGURADORAS
+
+Possibilidade futura de utilização de:
+
+- dados anonimizados;
+- comportamento de condução;
+- indicadores de risco;
+- produtos personalizados;
+- modelos UBI;
+- análises agregadas.
+
+IMPORTANTE:
+
+Esses públicos fazem parte da VISÃO DO PRODUTO.
+
+Não tente implementar todas essas verticais no MVP do CP1.
+
+# ============================================================
+# 6. MODELO DE NEGÓCIO FUTURO
+# ============================================================
+
+O planejamento do Enhara contempla possíveis fontes de receita como:
+
+- venda de dispositivo OBD2;
+- assinatura premium/freemium do app;
+- SaaS para gestão de frotas;
+- revenue share com oficinas;
+- parcerias com seguradoras;
+- utilização responsável de dados agregados e anonimizados;
+- inteligência de mercado.
+
+Esses elementos devem influenciar a arquitetura para não criarmos uma solução impossível de evoluir.
+
+Mas NÃO implemente:
+
+- pagamentos;
+- billing;
+- planos comerciais completos;
+- marketplace;
+- integração de seguradora;
+- contratos;
+- revenue share.
+
+a menos que todo o MVP principal esteja concluído e ainda exista tempo disponível.
+
+# ============================================================
+# 7. VISÃO FUNCIONAL DE LONGO PRAZO
+# ============================================================
+
+A plataforma poderá futuramente possuir:
+
+## Motorista
+
+- cadastro;
+- autenticação;
+- veículos;
+- dispositivo OBD2;
+- conexão Bluetooth;
+- dashboard do veículo;
+- telemetria;
+- diagnósticos;
+- alertas;
+- histórico;
+- viagens;
+- consumo;
+- comportamento de direção;
+- saúde do veículo;
+- manutenção;
+- notificações;
+- GPS;
+- mapa;
+- relatórios.
+
+## Frotas
+
+- organizações;
+- usuários;
+- permissões;
+- veículos;
+- motoristas;
+- painel da frota;
+- mapa;
+- alertas;
+- comparação;
+- manutenção;
+- disponibilidade;
+- histórico;
+- relatórios.
+
+## Inteligência futura
+
+- detecção de anomalias;
+- manutenção preditiva;
+- modelos estatísticos;
+- machine learning;
+- classificação de risco;
+- padrões de condução;
+- previsão de falhas;
+- comparação entre veículos.
+
+NÃO implemente ML artificialmente no MVP.
+
+Primeiro crie regras determinísticas confiáveis.
+
+# ============================================================
+# 8. PRINCIPAL FLUXO DO PRODUTO
+# ============================================================
+
+Conceitualmente:
+
+VEÍCULO
+    ↓
+ECU
+    ↓
+OBD2
+    ↓
+Bluetooth
+    ↓
+APP ENHARA
+    ↓
+Backend
+    ↓
+Processamento
+    ↓
+Persistência
+    ↓
+Diagnóstico
+    ↓
+Alertas
+    ↓
+Dashboard / Aplicativo
+    ↓
+Usuário
+
+No MVP, como o hardware físico pode não estar disponível:
+
+ECU REAL
+deverá ser substituível por
+ECU SIMULADA.
+
+A arquitetura NÃO pode acoplar a aplicação diretamente ao simulador.
+
+# ============================================================
+# 9. OBJETIVO EXATO DO MVP
+# ============================================================
+
+A primeira versão deve demonstrar o fluxo:
+
+SIMULADOR DE ECU
+        ↓
+APP / GATEWAY DE TELEMETRIA
+        ↓
+API SPRING BOOT
+        ↓
+POSTGRESQL
+        ↓
+MOTOR DE DIAGNÓSTICO
+        ↓
+ALERTAS
+        ↓
+SSE
+        ↓
+DASHBOARD WEB
+
+A demonstração deverá conseguir provar pelo menos:
+
+1. existe um veículo cadastrado;
+
+2. existe telemetria sendo produzida;
+
+3. valores da telemetria variam ao longo do tempo;
+
+4. telemetria chega ao backend;
+
+5. telemetria é validada;
+
+6. telemetria é armazenada;
+
+7. backend consegue fornecer o último estado conhecido;
+
+8. backend consegue fornecer histórico;
+
+9. regras analisam a telemetria;
+
+10. uma condição anormal gera um diagnóstico/alerta;
+
+11. o dashboard apresenta telemetria;
+
+12. o dashboard apresenta alertas;
+
+13. atualizações podem chegar praticamente em tempo real;
+
+14. existe documentação para reproduzir a demonstração.
+
+# ============================================================
+# 10. STACK ARQUITETURAL DEFINIDA
+# ============================================================
+
+Use esta arquitetura como padrão.
+
+Mudanças pequenas são permitidas caso haja uma justificativa técnica concreta.
+
+Não altere a stack inteira por preferência pessoal.
+
+## BACKEND
+
+Java 21 LTS
+
+Spring Boot 4.x em versão estável compatível
+
+Spring Web
+
+Spring Data JPA
+
+Hibernate
+
+Spring Validation
+
+Spring Security
+
+Spring Actuator
+
+Spring Modulith
+
+Flyway
+
+PostgreSQL
+
+OpenAPI 3
+
+JUnit 5
+
+Testcontainers
+
+Maven preferencialmente.
+
+Use Gradle somente se existir motivo claro.
+
+## WEB
+
+React
+
+TypeScript
+
+Vite
+
+TanStack Query
+
+React Router
+
+Tailwind CSS
+
+shadcn/ui quando compatível e útil
+
+Recharts para gráficos
+
+EventSource/SSE para atualizações em tempo real.
+
+## MOBILE
+
+React Native
+
+TypeScript
+
+React Navigation
+
+TanStack Query
+
+Zustand quando necessário para estado local
+
+Camada nativa preparada para futura integração Bluetooth.
+
+Não utilizar Expo Go como dependência arquitetural obrigatória se isso impedir integração nativa futura com Bluetooth/OBD2.
+
+Caso React Native CLI seja a abordagem tecnicamente adequada, utilize-a.
+
+## BANCO
+
+PostgreSQL.
+
+## INFRA LOCAL
+
+Docker
+
+Docker Compose.
+
+## CONTRATOS
+
+OpenAPI 3.
+
+## CI
+
+GitHub Actions.
+
+## OBSERVABILIDADE
+
+Spring Actuator.
+
+Logs estruturados razoáveis.
+
+Preparar caminho para Micrometer/OpenTelemetry futuramente.
+
+# ============================================================
+# 11. TECNOLOGIAS QUE NÃO DEVEM SER INTRODUZIDAS AGORA
+# ============================================================
+
+NÃO utilizar sem uma necessidade real demonstrável:
+
+- microservices;
+- Kubernetes;
+- Kafka;
+- RabbitMQ;
+- MongoDB;
+- GraphQL;
+- Elasticsearch;
+- Redis;
+- service mesh;
+- event sourcing;
+- CQRS complexo.
+
+O fato de o produto poder escalar não justifica complexidade distribuída prematura.
+
+O primeiro backend será um:
+
+MODULAR MONOLITH.
+
+# ============================================================
+# 12. ARQUITETURA BACKEND
+# ============================================================
+
+Construir um modular monolith utilizando conceitos de:
+
+- Domain Driven Design pragmático;
+- package-by-feature;
+- arquitetura hexagonal;
+- separação de responsabilidades;
+- baixo acoplamento;
+- alta coesão.
+
+Não organize toda a aplicação apenas assim:
+
+controller/
+service/
+repository/
+entity/
+
+Prefira organização por domínio.
+
+Exemplo:
+
+vehicle/
+    domain/
+    application/
+    infrastructure/
+    api/
+
+telemetry/
+    domain/
+    application/
+    infrastructure/
+    api/
+
+diagnostics/
+    domain/
+    application/
+    infrastructure/
+    api/
+
+alerts/
+    domain/
+    application/
+    infrastructure/
+    api/
+
+trips/
+    domain/
+    application/
+    infrastructure/
+    api/
+
+O domínio não deve conhecer HTTP.
+
+O domínio não deve depender de controllers.
+
+O domínio não deve depender diretamente de PostgreSQL.
+
+Controllers devem ser finos.
+
+Regras de negócio não devem ficar em controllers.
+
+Utilize Spring Modulith para preservar fronteiras arquiteturais quando fizer sentido.
+
+Crie testes arquiteturais se forem simples de manter.
+
+# ============================================================
+# 13. MÓDULOS INICIAIS DO BACKEND
+# ============================================================
+
+Criar inicialmente:
+
+vehicle
+telemetry
+diagnostics
+alerts
+trips
+
+Se necessário:
+
+shared
+common
+
+deve ser extremamente pequeno.
+
+Evite transformar shared/common em uma lixeira arquitetural.
+
+# ============================================================
+# 14. MONOREPO
+# ============================================================
+
+Estrutura desejada:
+
+enhara/
+│
+├── apps/
+│   ├── backend/
+│   ├── web/
+│   └── mobile/
+│
+├── packages/
+│   ├── api-client/
+│   └── shared-types/
+│
+├── contracts/
+│   └── openapi.yaml
+│
+├── docs/
+│   ├── architecture/
+│   ├── adr/
+│   ├── cp1/
+│   └── diagrams/
+│
+├── infra/
+│   └── docker/
+│
+├── scripts/
+│
+├── .github/
+│   └── workflows/
+│
+├── compose.yaml
+├── .gitignore
+├── .env.example
+└── README.md
+
+É permitido ajustar essa estrutura quando necessário para ferramentas específicas.
+
+Não crie complexidade monorepo desnecessária.
+
+# ============================================================
+# 15. CONTRACT-FIRST
+# ============================================================
+
+A API deve ser claramente especificada.
+
+Criar:
+
+contracts/openapi.yaml
+
+O frontend não deve inventar contratos independentes do backend.
+
+Evite divergências como:
+
+backend:
+vehicleId
+
+web:
+carId
+
+mobile:
+idVehicle
+
+Defina contratos consistentes.
+
+Quando tecnicamente viável, gere ou compartilhe tipos/clientes TypeScript a partir do OpenAPI.
+
+Não permita que geração de código atrase excessivamente a vertical slice.
+
+# ============================================================
+# 16. IDENTIFICADORES E DATAS
+# ============================================================
+
+Para entidades principais, prefira UUID quando apropriado.
+
+Timestamps devem ser armazenados em UTC.
+
+A API deve utilizar formatos ISO-8601.
+
+Não armazene números como strings.
+
+Exemplo ruim:
+
+rpm = "2800"
+
+Exemplo correto:
+
+rpm = 2800
+
+Unidades devem estar claras no contrato.
+
+# ============================================================
+# 17. MODELO DE VEÍCULO
+# ============================================================
+
+Criar entidade Vehicle.
+
+Campos iniciais:
+
+id
+name
+manufacturer
+model
+modelYear
+licensePlate
+createdAt
+updatedAt se necessário
+
+Opcionalmente, se não gerar complexidade excessiva:
+
+vin
+fuelType
+
+Criar:
+
+POST /api/vehicles
+
+GET /api/vehicles
+
+GET /api/vehicles/{id}
+
+Atualização/exclusão somente se forem simples.
+
+Criar seed de desenvolvimento com pelo menos um veículo.
+
+Exemplo:
+
+Chevrolet Astra
+ou
+veículo fictício de demonstração.
+
+Não dependa de dados reais do usuário.
+
+# ============================================================
+# 18. TELEMETRIA
+# ============================================================
+
+Telemetria inicial deve possuir pelo menos:
+
+vehicleId
+timestamp
+
+speedKmh
+rpm
+coolantTemperatureCelsius
+engineLoadPercent
+throttlePositionPercent
+batteryVoltage
+
+latitude
+longitude
+
+Se útil:
+
+fuelLevelPercent
+intakeAirTemperatureCelsius
+
+mas não deixe dados extras atrasarem o MVP.
+
+Campos essenciais devem ser explicitamente tipados.
+
+Informações não padronizadas poderão futuramente utilizar JSONB, mas não utilize JSON indiscriminadamente para tudo.
+
+# ============================================================
+# 19. BANCO E TELEMETRIA
+# ============================================================
+
+Criar tabela:
+
+telemetry_samples
+
+Campos adequados aos dados definidos.
+
+Criar índice importante:
+
+(vehicle_id, recorded_at)
+
+ou equivalente.
+
+O desenho deve permitir futuramente:
+
+- particionamento;
+- retenção;
+- agregações;
+- banco dedicado de séries temporais;
+
+mas NÃO introduza essas tecnologias agora.
+
+PostgreSQL é suficiente para o MVP.
+
+# ============================================================
+# 20. BATCHING
+# ============================================================
+
+O aplicativo não deve depender de uma requisição HTTP para cada PID individual.
+
+Criar suporte a batch.
+
+Exemplo conceitual:
+
+POST /api/telemetry/batches
+
+Body:
+
+{
+  "vehicleId": "...",
+  "samples": [
+    {...},
+    {...},
+    {...}
+  ]
+}
+
+Definir limites razoáveis.
+
+Validar payload.
+
+Retornar resposta clara.
+
+# ============================================================
+# 21. OBD2 E CAMADA DE ABSTRAÇÃO
+# ============================================================
+
+O produto futuramente deverá obter dados através de OBD2/Bluetooth.
+
+O hardware real pode não estar disponível durante o desenvolvimento atual.
+
+Criar abstração no mobile:
+
+VehicleDataSource
+
+ou nome semanticamente equivalente.
+
+Implementações previstas:
+
+MockVehicleDataSource
+
+BluetoothObdVehicleDataSource
+
+Neste momento:
+
+MockVehicleDataSource
+deve funcionar.
+
+BluetoothObdVehicleDataSource
+pode existir apenas como contrato/estrutura inicial, desde que não crie código inútil ou falso.
+
+O restante da aplicação não deve saber se os dados vêm de:
+
+- ECU simulada;
+- OBD2;
+- Bluetooth;
+- arquivo;
+- outro provider.
+
+A origem dos dados deve ser substituível.
+
+# ============================================================
+# 22. SIMULADOR DE ECU
+# ============================================================
+
+O simulador deve parecer plausível.
+
+Não gere valores completamente aleatórios a cada frame.
+
+Os valores devem mudar gradualmente.
+
+Criar pelo menos dois cenários:
+
+NORMAL
+
+OVERHEAT
+
+Se fácil, adicione:
+
+LOW_BATTERY
+
+## NORMAL
+
+Valores aproximados e variáveis:
+
+RPM:
+aproximadamente 750–4000 dependendo da simulação.
+
+Velocidade:
+0–120 km/h.
+
+Temperatura:
+aproximadamente 85–100 °C.
+
+Bateria com motor ligado:
+aproximadamente faixa coerente de tensão.
+
+Throttle:
+variação progressiva.
+
+Engine Load:
+variação relacionada ao cenário.
+
+Não é necessário construir um simulador físico perfeito.
+
+## OVERHEAT
+
+Começar em temperatura normal.
+
+Fazer coolantTemperatureCelsius aumentar gradativamente.
+
+Ultrapassar o limite configurado.
+
+Manter condição durante tempo suficiente para ativar diagnóstico.
+
+Isso deve produzir um alerta automaticamente.
+
+## LOW_BATTERY
+
+Se implementado:
+
+reduzir tensão progressivamente até faixa anormal.
+
+Produzir alerta correspondente.
+
+# ============================================================
+# 23. MOTOR DE DIAGNÓSTICO
+# ============================================================
+
+Criar arquitetura extensível.
+
+Não criar:
+
+if gigante dentro do controller.
+
+Criar algo semelhante a:
+
+DiagnosticRule
+
+evaluate(...)
+
+ou arquitetura semanticamente equivalente.
+
+Implementar obrigatoriamente:
+
+ENGINE_TEMPERATURE_HIGH
+
+Implementar também:
+
+BATTERY_VOLTAGE_LOW
+
+Regras devem possuir configuração clara.
+
+Evite magic numbers espalhados.
+
+Podem existir thresholds configurados em código inicialmente, desde que centralizados e documentados.
+
+Diagnósticos não devem afirmar causalidade que os dados não comprovam.
+
+Exemplo:
+
+CORRETO:
+
+"Temperatura do motor acima da faixa configurada."
+
+EVITAR:
+
+"A bomba d'água está quebrada."
+
+quando não existem dados suficientes para afirmar isso.
+
+# ============================================================
+# 24. ALERTAS
+# ============================================================
+
+Criar entidade Alert.
+
+Campos mínimos:
+
+id
+vehicleId
+type
+severity
+title
+description
+createdAt
+acknowledgedAt
+
+Se necessário:
+
+status
+
+Severidades:
+
+INFO
+WARNING
+CRITICAL
+
+Endpoints mínimos:
+
+GET /api/vehicles/{id}/alerts
+
+GET /api/vehicles/{id}/alerts?active=true
+
+PATCH /api/alerts/{id}/acknowledge
+
+Garantir que uma condição repetitiva não gere milhares de alertas idênticos por segundo.
+
+Implementar deduplicação/cooldown simples.
+
+# ============================================================
+# 25. SSE E TEMPO REAL
+# ============================================================
+
+Utilizar Server-Sent Events para atualização backend → dashboard.
+
+Exemplo:
+
+GET /api/vehicles/{id}/events
+
+Pode emitir eventos como:
+
+telemetry
+alert
+vehicle-status
+
+Evite WebSocket neste momento porque o principal caso de uso é server → client.
+
+Garanta gerenciamento correto de conexões.
+
+Não deixe o endpoint bloquear recursos indefinidamente de maneira inadequada.
+
+# ============================================================
+# 26. TRIPS
+# ============================================================
+
+Criar estrutura inicial de Trip.
+
+Campos:
+
+id
+vehicleId
+startedAt
+endedAt
+distanceKm
+averageSpeedKmh
+maxSpeedKmh
+
+Não é obrigatório construir detecção sofisticada de viagem antes da vertical slice.
+
+Prioridade menor que:
+
+telemetry
+diagnostics
+alerts.
+
+# ============================================================
+# 27. API MÍNIMA
+# ============================================================
+
+Desejável:
+
+GET /api/vehicles
+
+POST /api/vehicles
+
+GET /api/vehicles/{id}
+
+POST /api/telemetry/batches
+
+GET /api/vehicles/{id}/telemetry/latest
+
+GET /api/vehicles/{id}/telemetry/history
+
+GET /api/vehicles/{id}/alerts
+
+PATCH /api/alerts/{id}/acknowledge
+
+GET /api/vehicles/{id}/events
+
+Opcional depois:
+
+GET /api/vehicles/{id}/trips
+
+GET /api/vehicles/{id}/status
+
+A nomenclatura pode ser levemente ajustada se existir justificativa REST melhor.
+
+# ============================================================
+# 28. ERROS DA API
+# ============================================================
+
+Criar tratamento consistente de erros.
+
+Não retornar stacktrace para cliente.
+
+Criar estrutura de resposta como:
+
+timestamp
+status
+code
+message
+path
+details quando apropriado
+
+Validar:
+
+UUIDs
+payload
+campos obrigatórios
+ranges numéricos.
+
+Exemplos:
+
+RPM não negativo.
+
+Percentuais 0–100 quando aplicável.
+
+Latitude/longitude dentro dos limites possíveis.
+
+# ============================================================
+# 29. SPRING SECURITY
+# ============================================================
+
+Segurança é importante, mas login não deve bloquear o CP.
+
+Configure Spring Security de forma limpa e preparada para futura autenticação.
+
+No perfil de desenvolvimento/MVP poderá ser permitido acesso aos endpoints necessários.
+
+Documente claramente isso.
+
+Arquitetura futura deverá suportar:
+
+OIDC/OAuth2
+
+possivelmente Keycloak.
+
+Não implemente um sistema de autenticação caseiro inseguro.
+
+# ============================================================
+# 30. FLYWAY
+# ============================================================
+
+Toda alteração de schema deve utilizar migrations.
+
+Não depender de:
+
+ddl-auto=create
+
+como mecanismo oficial.
+
+Pode utilizar:
+
+ddl-auto=validate
+
+quando apropriado.
+
+Criar migrations versionadas.
+
+Exemplo:
+
+V1__create_vehicles.sql
+V2__create_telemetry.sql
+V3__create_alerts.sql
+V4__create_trips.sql
+
+A ordem pode variar.
+
+# ============================================================
+# 31. POSTGRESQL
+# ============================================================
+
+Criar serviço PostgreSQL em Docker Compose.
+
+Configurar:
+
+database
+user
+password de desenvolvimento via env
+
+Healthcheck.
+
+Volume persistente local.
+
+Não utilizar credenciais reais.
+
+Criar valores padrão de desenvolvimento através de .env.example quando adequado.
+
+# ============================================================
+# 32. BACKEND — HEALTH
+# ============================================================
+
+Adicionar Spring Actuator.
+
+Disponibilizar pelo menos:
+
+/actuator/health
+
+Documentar.
+
+Health do backend deve refletir conexão com banco quando possível.
+
+# ============================================================
+# 33. WEB — OBJETIVO
+# ============================================================
+
+O dashboard web representa principalmente a visão de acompanhamento do veículo/frota.
+
+Deve possuir aparência moderna relacionada a:
+
+- tecnologia;
+- automóveis;
+- telemetria;
+- instrumentação.
+
+Não produzir apenas um CRUD administrativo genérico.
+
+Não sacrificar legibilidade por estética.
+
+# ============================================================
+# 34. WEB — TELAS
+# ============================================================
+
+Criar pelo menos:
+
+Dashboard
+
+Vehicles
+
+Vehicle Details
+
+Se o roteamento permitir:
+
+/
+
+/vehicles
+
+/vehicles/:id
+
+# ============================================================
+# 35. WEB — DASHBOARD
+# ============================================================
+
+A tela principal deve conseguir apresentar:
+
+Veículo atual
+
+Status geral
+
+Velocidade
+
+RPM
+
+Temperatura do motor
+
+Tensão da bateria
+
+Carga do motor
+
+Throttle
+
+Alertas ativos
+
+Última atualização
+
+Gráfico temporal
+
+O gráfico deve apresentar pelo menos:
+
+temperatura
+ou
+RPM
+
+Idealmente ambos.
+
+Não precisa existir dez gráficos diferentes.
+
+# ============================================================
+# 36. WEB — TEMPO REAL
+# ============================================================
+
+Consumir SSE.
+
+Quando telemetria nova chegar:
+
+atualizar cards.
+
+Atualizar gráfico de maneira controlada.
+
+Quando alerta chegar:
+
+exibir alerta.
+
+Criar fallback para polling apenas se necessário.
+
+Não fazer polling agressivo sem motivo.
+
+# ============================================================
+# 37. WEB — ESTADOS DE INTERFACE
+# ============================================================
+
+Implementar estados razoáveis para:
+
+loading
+
+erro
+
+sem dados
+
+backend offline
+
+SSE reconectando, se necessário.
+
+A interface não deve quebrar caso o backend esteja temporariamente indisponível.
+
+# ============================================================
+# 38. MOBILE — OBJETIVO
+# ============================================================
+
+O aplicativo mobile será futuramente responsável por:
+
+- interação com motorista;
+- conexão com OBD2;
+- Bluetooth;
+- coleta;
+- GPS;
+- visualização;
+- alertas;
+- encaminhamento de telemetria.
+
+Para o MVP:
+
+ele deve principalmente provar a arquitetura de coleta simulada e comunicação com backend.
+
+# ============================================================
+# 39. MOBILE — TELAS
+# ============================================================
+
+Criar pelo menos:
+
+Home / Dashboard
+
+Vehicle
+
+Telemetry
+
+Alerts
+
+Pode simplificar navegação se necessário.
+
+# ============================================================
+# 40. MOBILE — SIMULAÇÃO
+# ============================================================
+
+Criar uma área de desenvolvimento ou tela de simulação.
+
+Permitir:
+
+START
+
+STOP
+
+Scenario:
+
+NORMAL
+OVERHEAT
+
+e LOW_BATTERY se implementado.
+
+Durante execução:
+
+mostrar telemetria variando.
+
+Enviar batches ao backend periodicamente.
+
+Não enviar milhares de requests.
+
+# ============================================================
+# 41. MOBILE — OFFLINE / BUFFER
+# ============================================================
+
+A arquitetura deve permitir futuramente buffering quando a internet cair.
+
+Para o MVP:
+
+implemente somente se for simples.
+
+Mas não descarte dados imediatamente por desenho sem qualquer camada de abstração.
+
+Pode existir uma pequena fila em memória.
+
+Persistência local avançada pode ser roadmap.
+
+# ============================================================
+# 42. GPS
+# ============================================================
+
+Latitude e longitude fazem parte do modelo de telemetria.
+
+No simulador:
+
+utilize uma rota fictícia/configurável.
+
+Não dependa de localização pessoal real.
+
+Mapa é funcionalidade secundária para CP1.
+
+Se toda a vertical slice estiver funcionando, adicionar mapa será um ótimo incremento.
+
+Preferência arquitetural futura:
+
+Mapbox ou provider abstraído.
+
+Não acople todo o domínio diretamente ao SDK do provider.
+
+# ============================================================
+# 43. UI / DESIGN
+# ============================================================
+
+Criar identidade visual coerente com o projeto.
+
+Temática:
+
+automotivo
+tecnologia
+telemetria
+
+Pode utilizar:
+
+tema escuro;
+cards;
+indicadores;
+gráficos;
+instrumentação visual.
+
+Evite:
+
+excesso de gradientes;
+animações inúteis;
+textos enormes;
+aspecto de template genérico;
+interface futurista exagerada que prejudique legibilidade.
+
+Priorize:
+
+clareza
+hierarquia visual
+responsividade
+funcionalidade.
+
+# ============================================================
+# 44. RESPONSIVIDADE
+# ============================================================
+
+Dashboard web deve funcionar razoavelmente em:
+
+desktop
+
+notebook
+
+tablet
+
+Não precisa ser perfeito em celular se o produto já possui app mobile, mas não deve quebrar.
+
+# ============================================================
+# 45. TESTES BACKEND
+# ============================================================
+
+Criar testes prioritariamente para comportamento importante.
+
+Obrigatório:
+
+teste unitário ENGINE_TEMPERATURE_HIGH
+
+teste unitário BATTERY_VOLTAGE_LOW
+
+teste de persistência importante
+
+teste de ingestão de telemetria
+
+teste de criação de alerta
+
+Quando apropriado:
+
+Testcontainers + PostgreSQL.
+
+Não substituir todos os testes de integração por H2 se isso esconder diferenças relevantes de PostgreSQL.
+
+# ============================================================
+# 46. TESTES WEB
+# ============================================================
+
+Criar testes essenciais sem gastar metade do projeto construindo suite enorme.
+
+Testar ao menos:
+
+renderização de informação crítica
+
+estado de loading/erro
+
+alguma integração importante de dashboard quando viável.
+
+Use:
+
+Vitest
+
+Testing Library.
+
+# ============================================================
+# 47. TESTES MOBILE
+# ============================================================
+
+Se viável:
+
+testar lógica do simulador separadamente.
+
+O simulador deve ser testável sem depender de renderização.
+
+# ============================================================
+# 48. E2E
+# ============================================================
+
+Depois que a vertical slice estiver funcionando:
+
+criar teste E2E simples usando Playwright no web, caso custo de implementação seja razoável.
+
+Fluxo ideal:
+
+abrir dashboard
+→ carregar veículo
+→ observar dados
+→ provocar cenário
+→ observar alerta.
+
+Se automatizar isso exigir esforço desproporcional, priorize teste manual reproduzível documentado.
+
+# ============================================================
+# 49. DOCKER COMPOSE
+# ============================================================
+
+Criar:
+
+compose.yaml
+
+Deve conseguir iniciar pelo menos:
+
+postgres
+
+backend
+
+Idealmente:
+
+web
+
+também.
+
+Não containerize mobile.
+
+Adicionar healthchecks quando apropriado.
+
+# ============================================================
+# 50. DESENVOLVIMENTO LOCAL
+# ============================================================
+
+Tornar desenvolvimento simples.
+
+Exemplo desejado:
+
+docker compose up -d postgres
+
+cd apps/backend
+./mvnw spring-boot:run
+
+cd apps/web
+npm install
+npm run dev
+
+cd apps/mobile
+npm install
+npm ...
+
+Criar Maven Wrapper.
+
+Criar scripts auxiliares se ajudarem.
+
+# ============================================================
+# 51. CONFIGURAÇÕES
+# ============================================================
+
+Usar environments/perfis.
+
+Backend:
+
+application.yml
+
+application-dev.yml quando necessário.
+
+Não hardcode:
+
+localhost em dezenas de locais.
+
+Centralizar URLs.
+
+Web:
+
+.env
+
+Mobile:
+
+config adequada.
+
+Criar:
+
+.env.example
+
+# ============================================================
+# 52. CORS
+# ============================================================
+
+Configurar CORS conscientemente para desenvolvimento.
+
+Não utilizar:
+
+allow everything
+
+como solução permanente sem documentar.
+
+# ============================================================
+# 53. OBSERVABILIDADE
+# ============================================================
+
+Logs devem permitir compreender:
+
+ingestão de telemetria;
+
+criação de alerta;
+
+erros;
+
+startup.
+
+Evitar logar cada sample individual em INFO se isso gerar ruído absurdo.
+
+Utilizar níveis de log corretamente.
+
+# ============================================================
+# 54. OPENAPI
+# ============================================================
+
+Documentar endpoints.
+
+Idealmente disponibilizar Swagger UI em desenvolvimento.
+
+README deve informar URL.
+
+Não faça a especificação divergir do backend.
+
+Se optar por spec-first, mantenha implementação alinhada.
+
+# ============================================================
+# 55. CI
+# ============================================================
+
+Criar GitHub Actions.
+
+Pipeline mínimo:
+
+Backend:
+
+build
+test
+
+Web:
+
+install
+lint
+test
+build
+
+Mobile:
+
+pelo menos typecheck/lint/test quando ambiente permitir.
+
+O CI não deve depender de secrets desnecessários.
+
+# ============================================================
+# 56. GIT
+# ============================================================
+
+Se o repositório ainda não existe:
+
+git init
+
+Criar .gitignore adequado para:
+
+Java
+Maven
+Node
+React
+React Native
+IDE
+env
+build artifacts
+OS
+
+Faça commits pequenos e coerentes durante o desenvolvimento.
+
+Exemplos:
+
+chore: initialize Enhara monorepo
+
+feat: add vehicle module
+
+feat: implement telemetry ingestion
+
+feat: add diagnostic rules
+
+feat: add realtime dashboard
+
+feat: add mobile telemetry simulator
+
+test: add telemetry integration coverage
+
+docs: add CP1 demo guide
+
+Não faça commit de código quebrado deliberadamente quando evitável.
+
+# ============================================================
+# 57. GITHUB
+# ============================================================
+
+Verifique:
+
+gh --version
+
+gh auth status
+
+Se GitHub CLI estiver:
+
+- instalado;
+- autenticado;
+
+e não existir remote:
+
+crie um repositório PRIVADO chamado:
+
+enhara
+
+Configure:
+
+origin
+
+Faça push quando apropriado.
+
+NÃO sobrescreva remote existente.
+
+NÃO altere repositório existente sem inspecionar antes.
+
+Se GitHub CLI não estiver autenticado:
+
+continue todo o desenvolvimento localmente.
+
+Isso NÃO é bloqueio para o MVP.
+
+# ============================================================
+# 58. DOCUMENTAÇÃO
+# ============================================================
+
+Criar README.md principal profissional.
+
+Deve conter:
+
+# Enhara
+
+Descrição
+
+Problema
+
+Solução
+
+MVP
+
+Arquitetura
+
+Stack
+
+Estrutura do repositório
+
+Pré-requisitos
+
+Como executar banco
+
+Como executar backend
+
+Como executar web
+
+Como executar mobile
+
+Como executar testes
+
+Como utilizar simulador
+
+Como gerar cenário OVERHEAT
+
+Como verificar alerta
+
+URLs locais
+
+Endpoints principais
+
+Estado atual
+
+Limitações
+
+Roadmap
+
+# ============================================================
+# 59. DOCUMENTAÇÃO ARQUITETURAL
+# ============================================================
+
+Criar:
+
+docs/architecture/architecture.md
+
+Explicar:
+
+- contexto;
+- componentes;
+- fluxo de telemetria;
+- responsabilidades;
+- modular monolith;
+- separação entre ECU/app/backend;
+- processamento de diagnóstico;
+- persistência;
+- SSE;
+- dashboard.
+
+Criar diagrama Mermaid sempre que possível.
+
+# ============================================================
+# 60. ADRs
+# ============================================================
+
+Criar ADRs concisos.
+
+Pelo menos:
+
+001-modular-monolith.md
+
+002-postgresql.md
+
+003-react-native.md
+
+004-sse.md
+
+005-mock-obd.md
+
+Cada ADR:
+
+Context
+
+Decision
+
+Consequences
+
+Não escreva textos gigantes.
+
+# ============================================================
+# 61. DIAGRAMA ARQUITETURAL
+# ============================================================
+
+Criar documentação semelhante a:
+
+Vehicle / ECU
+      |
+     OBD2
+      |
+  Bluetooth
+      |
+React Native
+      |
+ REST batch
+      |
+Spring Boot
+      |
+ +----------------------------+
+ | Vehicle                    |
+ | Telemetry                  |
+ | Diagnostics                |
+ | Alerts                     |
+ | Trips                      |
+ +----------------------------+
+      |
+ PostgreSQL
+      |
+     SSE
+      |
+ React Dashboard
+
+Adicionar versão em Mermaid.
+
+# ============================================================
+# 62. ROADMAP DE ESCALABILIDADE
+# ============================================================
+
+A arquitetura precisa permitir evolução sem implementar infraestrutura prematura.
+
+Documentar evolução plausível:
+
+FASE 1
+
+Modular Monolith + PostgreSQL.
+
+FASE 2
+
+Separação lógica de processos pesados.
+
+FASE 3
+
+Event broker somente quando volume justificar.
+
+FASE 4
+
+Possível Kafka para telemetria de alta escala.
+
+FASE 5
+
+Particionamento de banco / armazenamento especializado.
+
+FASE 6
+
+Extração de módulos em serviços apenas quando houver necessidade organizacional ou operacional.
+
+Não implemente essas fases agora.
+
+# ============================================================
+# 63. LGPD / PRIVACIDADE
+# ============================================================
+
+A visão do produto inclui:
+
+telemetria
+GPS
+comportamento de condução.
+
+São informações sensíveis do ponto de vista de produto e privacidade.
+
+Arquitetura deve considerar:
+
+consentimento;
+
+minimização;
+
+retenção;
+
+anonimização futura;
+
+acesso controlado.
+
+Não implemente um sistema jurídico completo.
+
+Documente as considerações.
+
+Não utilize dados pessoais reais em seed.
+
+# ============================================================
+# 64. SEGURADORAS / DADOS
+# ============================================================
+
+Qualquer funcionalidade futura de seguradoras deverá utilizar informações:
+
+autorizadas;
+
+agregadas;
+
+anonimizadas quando aplicável.
+
+Isso é roadmap.
+
+Não implemente compartilhamento real no MVP.
+
+# ============================================================
+# 65. PERFORMANCE
+# ============================================================
+
+Não faça otimização prematura.
+
+Mas evite erros óbvios:
+
+N+1;
+
+queries sem índice;
+
+listas infinitas;
+
+gráfico recebendo quantidade infinita de pontos;
+
+buffer sem limite;
+
+SSE sem cleanup.
+
+Histórico de telemetria deve aceitar paginação, range de tempo ou limite.
+
+# ============================================================
+# 66. QUALIDADE DE CÓDIGO
+# ============================================================
+
+Código deve ser:
+
+legível;
+
+tipado;
+
+coeso;
+
+testável;
+
+sem duplicação absurda;
+
+sem abstrações inúteis.
+
+Não crie:
+
+interfaces apenas por ritual
+
+factories inúteis
+
+builders sem necessidade
+
+camadas apenas para aumentar quantidade de arquivos.
+
+Arquitetura deve servir ao produto.
+
+# ============================================================
+# 67. PRINCÍPIO YAGNI
+# ============================================================
+
+Pergunte internamente para cada tecnologia:
+
+"Existe um problema atual que isso resolve?"
+
+Se não:
+
+não adicione agora.
+
+# ============================================================
+# 68. PRIORIDADE DE DESENVOLVIMENTO
+# ============================================================
+
+SIGA ESTA ORDEM.
+
+## FASE A — AMBIENTE
+
+1. inspecionar workspace;
+2. verificar Git;
+3. verificar Java;
+4. verificar Maven;
+5. verificar Node;
+6. verificar npm;
+7. verificar Docker;
+8. verificar Docker Compose;
+9. verificar GitHub CLI;
+10. registrar bloqueios reais.
+
+## FASE B — FUNDAÇÃO
+
+1. inicializar Git;
+2. criar monorepo;
+3. criar .gitignore;
+4. criar README inicial;
+5. criar compose PostgreSQL;
+6. criar OpenAPI inicial;
+7. criar backend Spring Boot.
+
+## FASE C — BACKEND MÍNIMO
+
+1. Vehicle;
+2. PostgreSQL;
+3. Flyway;
+4. seed;
+5. endpoint vehicles;
+6. health endpoint.
+
+Execute tudo.
+
+## FASE D — TELEMETRIA
+
+1. modelo;
+2. migration;
+3. repository;
+4. batch ingestion;
+5. latest;
+6. history;
+7. testes.
+
+Execute tudo.
+
+## FASE E — DIAGNÓSTICO
+
+1. DiagnosticRule;
+2. temperatura;
+3. bateria;
+4. testes;
+5. eventos internos.
+
+Execute tudo.
+
+## FASE F — ALERTAS
+
+1. persistence;
+2. deduplication;
+3. API;
+4. acknowledge;
+5. testes.
+
+Execute tudo.
+
+## FASE G — SSE
+
+1. stream por veículo;
+2. telemetry events;
+3. alert events;
+4. teste manual/integrado.
+
+## FASE H — WEB
+
+1. React;
+2. layout;
+3. API;
+4. dashboard;
+5. cards;
+6. gráfico;
+7. alertas;
+8. SSE;
+9. build.
+
+## FASE I — SIMULADOR
+
+Se simplificar a obtenção da vertical slice, é permitido implementar inicialmente um simulador auxiliar no backend ou script APENAS para validar o fluxo enquanto o mobile não existe.
+
+Mas depois implementar o simulador propriamente desacoplado no mobile.
+
+## FASE J — MOBILE
+
+1. projeto;
+2. navegação;
+3. data source;
+4. mock OBD;
+5. dashboard;
+6. START/STOP;
+7. scenarios;
+8. batching;
+9. backend integration;
+10. build/test possível.
+
+## FASE K — POLIMENTO
+
+Somente depois da vertical slice:
+
+mapa;
+trips;
+melhor UX;
+mais gráficos;
+animações;
+mais diagnósticos.
+
+# ============================================================
+# 69. REGRA DE OURO DE PRIORIZAÇÃO
+# ============================================================
+
+Se houver pouco tempo:
+
+NÃO priorize:
+
+login;
+mapa;
+animação;
+tema;
+perfil;
+pagamento;
+frota completa;
+oficina;
+seguradora;
+ML;
+Bluetooth físico.
+
+Priorize:
+
+POSTGRESQL
+    ↓
+BACKEND
+    ↓
+VEHICLE
+    ↓
+TELEMETRY
+    ↓
+DIAGNOSTICS
+    ↓
+ALERT
+    ↓
+WEB DASHBOARD
+
+Essa sequência já é uma demonstração relevante.
+
+Depois:
+
+MOBILE.
+
+# ============================================================
+# 70. FALLBACK PARA MOBILE
+# ============================================================
+
+React Native pode exigir:
+
+Android SDK;
+Gradle;
+JDK;
+emulador;
+device.
+
+Se o ambiente não possuir tudo isso:
+
+NÃO pare o projeto inteiro.
+
+Continue implementando:
+
+backend;
+web;
+simulador;
+API;
+testes.
+
+Implemente mobile até o maior nível tecnicamente verificável.
+
+Documente exatamente o bloqueio.
+
+Não finja que executou algo que não executou.
+
+# ============================================================
+# 71. DEMONSTRAÇÃO OBRIGATÓRIA
+# ============================================================
+
+Prepare um fluxo simples de apresentação.
+
+Objetivo:
+
+mostrar funcionamento em aproximadamente 3 minutos.
+
+Exemplo:
+
+1. abrir Dashboard Enhara;
+
+2. mostrar veículo online;
+
+3. iniciar simulação NORMAL;
+
+4. mostrar:
+   velocidade;
+   RPM;
+   temperatura;
+   bateria;
+
+5. mostrar gráfico atualizando;
+
+6. mostrar que dados estão chegando no backend;
+
+7. mudar cenário para OVERHEAT;
+
+8. temperatura começa a subir;
+
+9. regra identifica situação;
+
+10. backend cria alerta;
+
+11. dashboard recebe alerta;
+
+12. apresentar mensagem clara ao usuário.
+
+Ideal:
+
+sem precisar editar código durante a apresentação.
+
+# ============================================================
+# 72. SCRIPT PARA DEMO
+# ============================================================
+
+Criar:
+
+docs/cp1/demo.md
+
+Deve conter instruções EXATAS.
+
+Exemplo:
+
+Terminal 1:
+docker compose up -d
+
+Terminal 2:
+...
+
+Terminal 3:
+...
+
+URL:
+...
+
+Passo:
+...
+
+Botão:
+...
+
+Resultado esperado:
+...
+
+Também criar instruções para recuperação caso algo pare durante a apresentação.
+
+# ============================================================
+# 73. SEED DEMONSTRATIVO
+# ============================================================
+
+Criar seed que permita abrir o sistema e já possuir:
+
+1 veículo.
+
+Dados não devem ser pessoais.
+
+Exemplo fictício:
+
+Vehicle:
+Enhara Demo Car
+
+Manufacturer:
+Demo Motors
+
+Model:
+Prototype 01
+
+ou algum exemplo claramente demonstrativo.
+
+# ============================================================
+# 74. SCRIPT DE TELEMETRIA ALTERNATIVO
+# ============================================================
+
+Criar, se simples, script de desenvolvimento alternativo.
+
+Por exemplo:
+
+scripts/simulate-telemetry.*
+
+Ele poderá enviar batches diretamente para o backend.
+
+Objetivo:
+
+TER PLANO B PARA O CP.
+
+Se o mobile falhar na hora:
+
+o dashboard ainda pode ser demonstrado.
+
+Esse script NÃO substitui a arquitetura mobile.
+
+É ferramenta de desenvolvimento e demonstração.
+
+# ============================================================
+# 75. RESILIÊNCIA PARA APRESENTAÇÃO
+# ============================================================
+
+A demonstração não deve depender obrigatoriamente de:
+
+internet;
+
+cloud;
+
+hardware OBD;
+
+GPS real;
+
+serviço externo;
+
+conta externa.
+
+Tudo essencial deve funcionar localmente.
+
+Se Mapbox/Maps depender de internet:
+
+mapa não deve ser caminho crítico.
+
+# ============================================================
+# 76. CLOUD
+# ============================================================
+
+Não priorize deploy cloud antes do sistema local funcionar.
+
+Depois que MVP estiver estável, se existir tempo:
+
+prepare documentação para deploy.
+
+Possível estratégia futura:
+
+Backend:
+AWS ECS/Fargate
+ou serviço PaaS equivalente.
+
+Database:
+RDS PostgreSQL.
+
+Storage futuro:
+S3.
+
+Mas NÃO introduza AWS obrigatoriamente agora.
+
+# ============================================================
+# 77. CRITÉRIOS DE ACEITE OBRIGATÓRIOS
+# ============================================================
+
+Antes de afirmar "concluído", tente confirmar:
+
+[ ] Git inicializado
+
+[ ] estrutura do monorepo criada
+
+[ ] backend Spring Boot compila
+
+[ ] PostgreSQL inicia
+
+[ ] Flyway executa
+
+[ ] backend conecta ao PostgreSQL
+
+[ ] Actuator health responde
+
+[ ] seed cria veículo
+
+[ ] GET vehicles responde
+
+[ ] POST telemetry batches funciona
+
+[ ] telemetria persiste
+
+[ ] latest telemetry funciona
+
+[ ] telemetry history funciona
+
+[ ] ENGINE_TEMPERATURE_HIGH possui teste
+
+[ ] BATTERY_VOLTAGE_LOW possui teste
+
+[ ] alerta é persistido
+
+[ ] alertas podem ser consultados
+
+[ ] acknowledge funciona
+
+[ ] SSE existe
+
+[ ] web compila
+
+[ ] dashboard carrega veículo
+
+[ ] dashboard mostra telemetria real do backend
+
+[ ] gráfico utiliza dados reais
+
+[ ] alertas aparecem
+
+[ ] atualização em tempo real funciona ou possui fallback documentado
+
+[ ] simulador funciona
+
+[ ] cenário NORMAL funciona
+
+[ ] cenário OVERHEAT funciona
+
+[ ] OVERHEAT produz alerta
+
+[ ] testes backend passam
+
+[ ] testes front essenciais passam
+
+[ ] README possui instruções reproduzíveis
+
+[ ] demo CP1 está documentada
+
+[ ] existe plano B de simulação
+
+# ============================================================
+# 78. NÃO MASCARAR FALHAS
+# ============================================================
+
+Se um teste falhar:
+
+não remova o teste apenas para ficar verde.
+
+Se TypeScript reclamar:
+
+não use any indiscriminadamente.
+
+Se Spring falhar:
+
+investigue causa.
+
+Se banco falhar:
+
+verifique migrations/config.
+
+Se uma biblioteca for incompatível:
+
+substitua por alternativa estável.
+
+Se uma implementação estiver errada:
+
+corrija.
+
+Não esconda problemas apenas para declarar conclusão.
+
+# ============================================================
+# 79. VERSIONAMENTO DE DEPENDÊNCIAS
+# ============================================================
+
+Antes de selecionar versões:
+
+verifique compatibilidade.
+
+Utilize versões estáveis atuais compatíveis com:
+
+Java 21;
+Spring Boot 4;
+React;
+React Native;
+Node disponível.
+
+Evite:
+
+alpha;
+beta;
+RC;
+
+a menos que não exista versão estável compatível.
+
+Registre decisões relevantes em documentação.
+
+# ============================================================
+# 80. CRITÉRIO DE ESCALABILIDADE
+# ============================================================
+
+Pense em escalabilidade principalmente através de:
+
+separação de domínio;
+
+stateless backend quando possível;
+
+batching;
+
+índices;
+
+contratos;
+
+baixo acoplamento;
+
+eventos internos;
+
+abstrações adequadas;
+
+SSE;
+
+possibilidade futura de mensageria.
+
+Não através de complexidade prematura.
+
+# ============================================================
+# 81. CRITÉRIO DE DESENVOLVIMENTO
+# ============================================================
+
+O projeto possui prazo curto.
+
+Prefira soluções que ofereçam:
+
+alta produtividade;
+
+boa documentação;
+
+boa testabilidade;
+
+baixo risco;
+
+ecossistema maduro;
+
+facilidade de execução local.
+
+# ============================================================
+# 82. CRITÉRIO DE FUNCIONALIDADE
+# ============================================================
+
+Toda arquitetura deve resultar em funcionalidade visível.
+
+Evite gastar tempo criando infraestrutura sem impacto no fluxo principal.
+
+# ============================================================
+# 83. CRITÉRIO DE APRESENTAÇÃO
+# ============================================================
+
+A arquitetura deverá ser explicável em menos de 1 minuto.
+
+Mensagem principal:
+
+"O aplicativo coleta dados do veículo através de uma fonte desacoplada. No MVP usamos uma ECU simulada. Os dados são enviados em batches para um backend modular em Spring Boot, armazenados em PostgreSQL e avaliados por regras de diagnóstico. Eventos importantes são enviados em tempo real ao dashboard via SSE."
+
+Essa explicação precisa corresponder à implementação real.
+
+# ============================================================
+# 84. CP1 — MATERIAL TÉCNICO
+# ============================================================
+
+Criar em:
+
+docs/cp1/
+
+pelo menos:
+
+demo.md
+
+architecture-summary.md
+
+implemented-features.md
+
+next-steps.md
+
+Não crie apresentação PowerPoint agora, a menos que todo o MVP esteja funcionando e ainda exista tempo.
+
+# ============================================================
+# 85. ARCHITECTURE SUMMARY
+# ============================================================
+
+architecture-summary.md deve responder de maneira simples:
+
+Por que Java/Spring Boot?
+
+Por que React?
+
+Por que React Native?
+
+Por que PostgreSQL?
+
+Por que modular monolith?
+
+Por que SSE?
+
+Por que não microservices?
+
+Por que mock OBD?
+
+Como a solução escala?
+
+# ============================================================
+# 86. IMPLEMENTED FEATURES
+# ============================================================
+
+implemented-features.md deve separar:
+
+FUNCIONANDO
+
+IMPLEMENTADO MAS NÃO VALIDADO
+
+PARCIAL
+
+ROADMAP
+
+Não chame roadmap de funcionalidade implementada.
+
+# ============================================================
+# 87. NEXT STEPS
+# ============================================================
+
+Roadmap sugerido depois do CP:
+
+1. Bluetooth OBD2 real;
+
+2. GPS real;
+
+3. DTCs OBD;
+
+4. trips automáticas;
+
+5. comportamento de condução;
+
+6. autenticação;
+
+7. notificações push;
+
+8. painel de frotas;
+
+9. oficinas;
+
+10. manutenção;
+
+11. analytics avançado;
+
+12. diagnóstico estatístico;
+
+13. ML/anomaly detection;
+
+14. cloud production;
+
+15. LGPD completa.
+
+# ============================================================
+# 88. REGRAS SOBRE DTC / OBD
+# ============================================================
+
+Caso você implemente códigos DTC futuramente:
+
+não invente códigos.
+
+Não finja possuir interpretação universal quando fabricantes podem possuir códigos específicos.
+
+No MVP, não é obrigatório.
+
+# ============================================================
+# 89. DADOS AUTOMOTIVOS
+# ============================================================
+
+Não invente precisão clínica/mecânica.
+
+O Enhara é uma plataforma assistiva.
+
+Alertas precisam utilizar linguagem como:
+
+"valor fora da faixa configurada"
+
+"recomenda-se inspeção"
+
+quando apropriado.
+
+Evitar:
+
+"seu motor vai quebrar em 10 km"
+
+sem modelo comprovado.
+
+# ============================================================
+# 90. PERFIL DE DESENVOLVIMENTO
+# ============================================================
+
+Criar perfil dev que facilite:
+
+CORS;
+seed;
+simulador;
+Swagger;
+logging.
+
+Não contaminar produção futura com configurações inseguras.
+
+# ============================================================
+# 91. API CLIENT
+# ============================================================
+
+Se viável:
+
+gerar pacote TypeScript compartilhado:
+
+packages/api-client
+
+Web e mobile devem reutilizá-lo.
+
+Se geração automática consumir tempo excessivo:
+
+crie cliente compartilhado manualmente baseado no OpenAPI, documentando.
+
+Evite duplicação.
+
+# ============================================================
+# 92. FORMATAÇÃO E LINT
+# ============================================================
+
+Backend:
+
+formatter/Checkstyle somente se simples.
+
+Frontend:
+
+ESLint.
+
+Prettier.
+
+Não introduza regras obsessivas que prejudiquem prazo.
+
+# ============================================================
+# 93. BUILD FINAL
+# ============================================================
+
+Antes de encerrar:
+
+limpe quando necessário;
+
+execute backend tests;
+
+execute backend package;
+
+execute web tests;
+
+execute web build;
+
+execute mobile checks possíveis;
+
+execute docker compose;
+
+verifique health;
+
+verifique API;
+
+execute fluxo OVERHEAT.
+
+# ============================================================
+# 94. EVIDÊNCIAS TÉCNICAS
+# ============================================================
+
+Registre na conclusão:
+
+comandos efetivamente executados;
+
+resultado;
+
+testes;
+
+builds;
+
+serviços;
+
+URLs;
+
+erros remanescentes.
+
+Não afirme ter executado um comando que não executou.
+
+# ============================================================
+# 95. RELATÓRIO FINAL
+# ============================================================
+
+Somente depois de chegar ao maior nível funcional possível, apresente um relatório final.
+
+Formato:
+
+## 1. Resumo
+
+## 2. Arquitetura implementada
+
+## 3. Funcionalidades funcionando
+
+## 4. Funcionalidades parciais
+
+## 5. Backend
+
+## 6. Web
+
+## 7. Mobile
+
+## 8. Banco
+
+## 9. Simulador
+
+## 10. Diagnóstico e alertas
+
+## 11. Testes executados
+
+Para cada grupo:
+
+comando
+resultado
+
+## 12. Builds executados
+
+## 13. Serviços executados
+
+## 14. URLs
+
+## 15. Como iniciar o sistema
+
+## 16. Como executar a demonstração
+
+## 17. Como provocar OVERHEAT
+
+## 18. Resultado esperado
+
+## 19. Limitações
+
+## 20. Próximos passos
+
+## 21. Commits criados
+
+## 22. Bloqueios que dependem de mim
+
+# ============================================================
+# 96. COMPORTAMENTO DO AGENTE DURANTE A EXECUÇÃO
+# ============================================================
+
+Não me dê atualizações triviais como:
+
+"Agora vou criar o backend."
+
+Apenas faça.
+
+Você pode manter um plano interno.
+
+Use ferramentas.
+
+Inspecione arquivos.
+
+Execute comandos.
+
+Implemente.
+
+Teste.
+
+Corrija.
+
+Continue.
+
+Não pare depois da primeira funcionalidade.
+
+Não pare depois do backend se ainda houver tempo.
+
+Não pare depois de criar web sem integrá-la.
+
+Não pare depois de criar mobile sem conectá-lo.
+
+Continue até:
+
+A) cumprir os critérios de aceite;
+
+OU
+
+B) atingir um bloqueio externo real;
+
+OU
+
+C) consumir todo o tempo razoável disponível após entregar o maior MVP funcional possível.
+
+# ============================================================
+# 97. ESTRATÉGIA DE EXECUÇÃO
+# ============================================================
+
+Antes de escrever código:
+
+1. inspecione o workspace atual;
+
+2. veja se já existe algum arquivo;
+
+3. não destrua trabalho existente caso encontre algo;
+
+4. verifique versões instaladas;
+
+5. defina versões compatíveis;
+
+6. monte um plano interno;
+
+7. comece imediatamente.
+
+Não me apresente o plano para aprovação.
+
+Execute-o.
+
+# ============================================================
+# 98. PRINCÍPIO MAIS IMPORTANTE
+# ============================================================
+
+PRIMEIRO:
+
+FAZER O CAMINHO CRÍTICO FUNCIONAR.
+
+DEPOIS:
+
+MELHORAR.
+
+O caminho crítico é:
+
+PostgreSQL
+     ↓
+Spring Boot
+     ↓
+Vehicle
+     ↓
+Telemetry
+     ↓
+Diagnostics
+     ↓
+Alerts
+     ↓
+SSE
+     ↓
+React Dashboard
+
+Quando isso estiver funcionando:
+
+React Native
+     ↓
+Mock ECU
+     ↓
+Backend
+
+Depois:
+
+GPS
+Trips
+UI
+etc.
+
+# ============================================================
+# 99. DEFINITION OF DONE DO CP1
+# ============================================================
+
+Considere o CP1 tecnicamente preparado quando for possível demonstrar algo semelhante a:
+
+1. abrir o Enhara;
+
+2. selecionar um veículo;
+
+3. iniciar a ECU simulada;
+
+4. visualizar telemetria normal;
+
+5. backend receber e persistir os valores;
+
+6. dashboard atualizar;
+
+7. alterar para OVERHEAT;
+
+8. temperatura subir;
+
+9. backend detectar situação;
+
+10. alerta CRITICAL ou WARNING ser criado;
+
+11. alerta aparecer no dashboard;
+
+12. explicar que a ECU simulada implementa o mesmo contrato previsto para futura integração OBD2/Bluetooth.
+
+Se isso estiver funcionando de ponta a ponta, o núcleo do MVP foi entregue.
+
+# ============================================================
+# 100. INICIE AGORA
+# ============================================================
+
+Comece imediatamente.
+
+Primeiro:
+
+- inspecione o ambiente;
+- inspecione o workspace;
+- verifique as ferramentas;
+- inicialize a estrutura;
+- comece pela vertical slice.
+
+Não responda apenas dizendo o que pretende fazer.
+
+USE AS FERRAMENTAS E EXECUTE O DESENVOLVIMENTO.
+
+Continue autonomamente.
+
+Não considere código gerado como sucesso.
+
+Teste aquilo que você construir.
+
+Corrija os problemas encontrados.
+
+Priorize uma demonstração funcional do Enhara para o CP1 de 01/09/2026.

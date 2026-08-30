@@ -1,0 +1,9 @@
+enhara:
+  demo:
+    seed: true
+    auto-start-simulation: false
+
+logging:
+  level:
+    br.com.enhara.api: DEBUG
+    org.hibernate.SQL: INFO

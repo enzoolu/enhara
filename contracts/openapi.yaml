@@ -1,0 +1,504 @@
+openapi: 3.1.0
+info:
+  title: Enhara API
+  version: 0.1.0
+  description: API do MVP para veículos, telemetria, diagnósticos, alertas, simulação e eventos SSE.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /
+    description: Mesmo host da aplicação ou proxy local
+security: []
+tags:
+  - name: Vehicles
+    description: Cadastro e consulta de veículos
+  - name: Telemetry
+    description: Ingestão e histórico de leituras veiculares
+  - name: Alerts
+    description: Alertas acionáveis e reconhecimento pelo usuário
+  - name: Diagnostics
+    description: Achados produzidos pelas regras determinísticas
+  - name: Simulation
+    description: Cenários auxiliares para demonstração local
+  - name: Realtime
+    description: Atualizações em tempo real via Server-Sent Events
+paths:
+  /api/vehicles:
+    get:
+      tags: [Vehicles]
+      summary: Lista veículos
+      operationId: listVehicles
+      responses:
+        "200":
+          description: Veículos cadastrados
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Vehicle" }
+    post:
+      tags: [Vehicles]
+      summary: Cadastra um veículo
+      operationId: createVehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateVehicle" }
+      responses:
+        "201":
+          description: Veículo criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Vehicle" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /api/vehicles/{vehicleId}:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    get:
+      tags: [Vehicles]
+      summary: Obtém um veículo
+      operationId: getVehicle
+      responses:
+        "200":
+          description: Veículo encontrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Vehicle" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/telemetry/batches:
+    post:
+      tags: [Telemetry]
+      summary: Persiste um batch de até 200 amostras e executa as regras de diagnóstico
+      operationId: ingestTelemetryBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TelemetryBatchInput" }
+      responses:
+        "201":
+          description: Batch aceito
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TelemetryBatchResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/telemetry:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    post:
+      tags: [Telemetry]
+      summary: Persiste uma amostra e executa as regras de diagnóstico
+      operationId: ingestTelemetry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TelemetryInput" }
+      responses:
+        "201":
+          description: Amostra aceita
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IngestionResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/telemetry/latest:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    get:
+      tags: [Telemetry]
+      summary: Retorna o último estado conhecido
+      operationId: getLatestTelemetry
+      responses:
+        "200":
+          description: Última amostra
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Telemetry" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/telemetry/history:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 500, default: 60 }
+    get:
+      tags: [Telemetry]
+      summary: Retorna histórico cronológico limitado
+      operationId: getTelemetryHistory
+      responses:
+        "200":
+          description: Amostras da mais antiga para a mais recente
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Telemetry" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/dashboard:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+      - name: historyLimit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 500, default: 60 }
+    get:
+      tags: [Vehicles]
+      summary: Obtém snapshot agregado para dashboard
+      operationId: getVehicleDashboard
+      responses:
+        "200":
+          description: Snapshot do veículo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/alerts:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+      - name: active
+        in: query
+        schema: { type: boolean, default: false }
+    get:
+      tags: [Alerts]
+      summary: Lista alertas; com active=true retorna somente abertos
+      operationId: listVehicleAlerts
+      responses:
+        "200":
+          description: Alertas do veículo
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Alert" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/alerts/{alertId}/acknowledge:
+    parameters:
+      - name: alertId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Alerts]
+      summary: Reconhece um alerta aberto
+      operationId: acknowledgeAlert
+      responses:
+        "200":
+          description: Alerta reconhecido
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alert" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/diagnostics:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+      - name: activeOnly
+        in: query
+        schema: { type: boolean, default: false }
+    get:
+      tags: [Diagnostics]
+      summary: Lista diagnósticos do veículo
+      operationId: listVehicleDiagnostics
+      responses:
+        "200":
+          description: Diagnósticos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Diagnostic" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/events:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    get:
+      tags: [Realtime]
+      summary: Abre stream SSE com eventos connected, telemetry, diagnostic e alert
+      operationId: streamVehicleEvents
+      responses:
+        "200":
+          description: Stream de eventos por veículo
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/simulation:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    get:
+      tags: [Simulation]
+      summary: Consulta estado do simulador auxiliar
+      operationId: getSimulationStatus
+      responses:
+        "200":
+          description: Estado atual
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulationStatus" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/simulation/start:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    post:
+      tags: [Simulation]
+      summary: Inicia o simulador auxiliar
+      operationId: startSimulation
+      responses:
+        "200":
+          description: Simulador iniciado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulationStatus" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/simulation/stop:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    post:
+      tags: [Simulation]
+      summary: Para o simulador auxiliar
+      operationId: stopSimulation
+      responses:
+        "200":
+          description: Simulador parado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulationStatus" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/simulation/tick:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    post:
+      tags: [Simulation]
+      summary: Gera uma amostra determinística no cenário selecionado
+      operationId: tickSimulation
+      responses:
+        "200":
+          description: Amostra gerada, diagnosticada e persistida
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IngestionResult" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/simulation/scenario/{scenario}:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+      - name: scenario
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/SimulationScenario" }
+    post:
+      tags: [Simulation]
+      summary: Altera o cenário sem editar código
+      operationId: setSimulationScenario
+      responses:
+        "200":
+          description: Cenário selecionado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulationStatus" }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  parameters:
+    VehicleId:
+      name: vehicleId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: Requisição inválida
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    Conflict:
+      description: Conflito de unicidade
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+  schemas:
+    CreateVehicle:
+      type: object
+      additionalProperties: false
+      required:
+        [name, vin, manufacturer, model, modelYear, licensePlate, odometerKm]
+      properties:
+        name: { type: string, maxLength: 80, examples: [Enhara Demo Car] }
+        vin: { type: string, pattern: "^[A-HJ-NPR-Z0-9]{17}$" }
+        manufacturer: { type: string, maxLength: 80 }
+        model: { type: string, maxLength: 80 }
+        modelYear: { type: integer, minimum: 1886, maximum: 2100 }
+        licensePlate: { type: string, pattern: "^[A-Z0-9-]{6,10}$" }
+        odometerKm: { type: number, minimum: 0 }
+    Vehicle:
+      allOf:
+        - $ref: "#/components/schemas/CreateVehicle"
+        - type: object
+          required: [id, createdAt]
+          properties:
+            id: { type: string, format: uuid }
+            createdAt: { type: string, format: date-time }
+    TelemetryInput:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          speedKph,
+          rpm,
+          engineTempC,
+          engineLoadPercent,
+          throttlePositionPercent,
+          batteryVoltage,
+          fuelLevelPercent,
+        ]
+      properties:
+        recordedAt:
+          {
+            type: string,
+            format: date-time,
+            description: Opcional; o backend usa o instante atual quando ausente.,
+          }
+        speedKph: { type: number, minimum: 0, maximum: 350 }
+        rpm: { type: integer, minimum: 0, maximum: 12000 }
+        engineTempC: { type: number, minimum: -50, maximum: 180 }
+        engineLoadPercent: { type: number, minimum: 0, maximum: 100 }
+        throttlePositionPercent: { type: number, minimum: 0, maximum: 100 }
+        batteryVoltage: { type: number, minimum: 0, maximum: 30 }
+        fuelLevelPercent: { type: number, minimum: 0, maximum: 100 }
+        latitude: { type: [number, "null"], minimum: -90, maximum: 90 }
+        longitude: { type: [number, "null"], minimum: -180, maximum: 180 }
+        source: { type: string, enum: [SIMULATOR, MOBILE, API], default: API }
+    Telemetry:
+      allOf:
+        - $ref: "#/components/schemas/TelemetryInput"
+        - type: object
+          required: [id, vehicleId, recordedAt, source]
+          properties:
+            id: { type: integer, format: int64 }
+            vehicleId: { type: string, format: uuid }
+    TelemetryBatchInput:
+      type: object
+      additionalProperties: false
+      required: [vehicleId, samples]
+      properties:
+        vehicleId: { type: string, format: uuid }
+        samples:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: { $ref: "#/components/schemas/TelemetryInput" }
+    IngestionResult:
+      type: object
+      required: [telemetry, diagnostics, newAlerts]
+      properties:
+        telemetry: { $ref: "#/components/schemas/Telemetry" }
+        diagnostics:
+          type: array
+          items: { $ref: "#/components/schemas/Diagnostic" }
+        newAlerts:
+          type: array
+          items: { $ref: "#/components/schemas/Alert" }
+    TelemetryBatchResult:
+      type: object
+      required: [vehicleId, acceptedSamples, results]
+      properties:
+        vehicleId: { type: string, format: uuid }
+        acceptedSamples: { type: integer, minimum: 1, maximum: 200 }
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/IngestionResult" }
+    Severity:
+      type: string
+      enum: [INFO, WARNING, CRITICAL]
+    Diagnostic:
+      type: object
+      required: [id, vehicleId, code, description, severity, status, detectedAt]
+      properties:
+        id: { type: string, format: uuid }
+        vehicleId: { type: string, format: uuid }
+        telemetryId: { type: [integer, "null"], format: int64 }
+        code:
+          {
+            type: string,
+            enum:
+              [ENGINE_TEMPERATURE_HIGH, BATTERY_VOLTAGE_LOW, ENGINE_OVERSPEED],
+          }
+        description: { type: string }
+        severity: { $ref: "#/components/schemas/Severity" }
+        status: { type: string, enum: [ACTIVE, RESOLVED] }
+        detectedAt: { type: string, format: date-time }
+        resolvedAt: { type: [string, "null"], format: date-time }
+    Alert:
+      type: object
+      required:
+        [id, vehicleId, type, severity, title, message, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        vehicleId: { type: string, format: uuid }
+        telemetryId: { type: [integer, "null"], format: int64 }
+        type:
+          {
+            type: string,
+            enum: [ENGINE_OVERHEAT, LOW_BATTERY, LOW_FUEL, ENGINE_OVERSPEED],
+          }
+        severity: { $ref: "#/components/schemas/Severity" }
+        title: { type: string }
+        message: { type: string }
+        status: { type: string, enum: [OPEN, ACKNOWLEDGED] }
+        createdAt: { type: string, format: date-time }
+        acknowledgedAt: { type: [string, "null"], format: date-time }
+    Dashboard:
+      type: object
+      required:
+        [
+          vehicle,
+          telemetryHistory,
+          activeDiagnostics,
+          openAlerts,
+          simulationRunning,
+        ]
+      properties:
+        vehicle: { $ref: "#/components/schemas/Vehicle" }
+        latestTelemetry:
+          oneOf:
+            - $ref: "#/components/schemas/Telemetry"
+            - type: "null"
+        telemetryHistory:
+          type: array
+          items: { $ref: "#/components/schemas/Telemetry" }
+        activeDiagnostics:
+          type: array
+          items: { $ref: "#/components/schemas/Diagnostic" }
+        openAlerts:
+          type: array
+          items: { $ref: "#/components/schemas/Alert" }
+        simulationRunning: { type: boolean }
+    SimulationScenario:
+      type: string
+      enum: [NORMAL, OVERHEAT, LOW_BATTERY]
+    SimulationStatus:
+      type: object
+      required: [vehicleId, running, scenario, generatedSamples]
+      properties:
+        vehicleId: { type: string, format: uuid }
+        running: { type: boolean }
+        scenario: { $ref: "#/components/schemas/SimulationScenario" }
+        generatedSamples: { type: integer, format: int64, minimum: 0 }
+    ApiError:
+      type: object
+      required: [timestamp, status, error, message, path, fieldErrors]
+      properties:
+        timestamp: { type: string, format: date-time }
+        status: { type: integer }
+        error: { type: string }
+        message: { type: string }
+        path: { type: string }
+        fieldErrors:
+          type: object
+          additionalProperties: { type: string }

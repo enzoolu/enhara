@@ -1,0 +1,10 @@
+.git
+.github
+.env
+**/node_modules
+**/target
+**/dist
+**/.expo
+**/.idea
+**/.vscode
+PROMPT_MESTRE.md.txt

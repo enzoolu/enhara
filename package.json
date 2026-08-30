@@ -1,0 +1,17 @@
+{
+  "name": "enhara",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["apps/web", "apps/mobile", "packages/*"],
+  "scripts": {
+    "build:web": "npm --prefix apps/web run build",
+    "test:web": "npm --prefix apps/web test",
+    "test:e2e": "playwright test",
+    "check:mobile": "npm --prefix apps/mobile run typecheck",
+    "start:web": "npm --prefix apps/web run dev",
+    "start:mobile": "npm --prefix apps/mobile start"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}
