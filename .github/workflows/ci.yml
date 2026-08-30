@@ -28,10 +28,10 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
-      - run: npm run test:web
-      - run: npm run build:web
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci --prefix apps/web
+      - run: npm --prefix apps/web test
+      - run: npm --prefix apps/web run build
 
   mobile:
     runs-on: ubuntu-latest
@@ -41,9 +41,9 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
-      - run: npm run check:mobile
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci --prefix apps/mobile
+      - run: npm --prefix apps/mobile run typecheck
 
   contract:
     runs-on: ubuntu-latest
