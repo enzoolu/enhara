@@ -7,6 +7,8 @@ import br.com.enhara.api.shared.api.ApiModels.IngestionResponse;
 import br.com.enhara.api.shared.api.ApiModels.TelemetryRequest;
 import br.com.enhara.api.shared.api.ApiModels.TelemetryResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -49,7 +51,7 @@ public class TelemetryController {
 
     @GetMapping("/vehicles/{vehicleId}/telemetry/history")
     public List<TelemetryResponse> history(@PathVariable UUID vehicleId,
-                                           @RequestParam(defaultValue = "60") int limit) {
+                                           @RequestParam(defaultValue = "60") @Min(1) @Max(500) int limit) {
         return telemetry.history(vehicleId, limit).stream().map(TelemetryResponse::from).toList();
     }
 }

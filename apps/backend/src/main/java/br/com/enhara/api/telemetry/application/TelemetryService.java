@@ -2,6 +2,7 @@ package br.com.enhara.api.telemetry.application;
 
 import br.com.enhara.api.alerts.domain.Alert;
 import br.com.enhara.api.diagnostics.domain.Diagnostic;
+import br.com.enhara.api.health.application.VehicleHealthService;
 import br.com.enhara.api.telemetry.domain.TelemetrySample;
 import br.com.enhara.api.diagnostics.application.DiagnosticRulesService;
 import br.com.enhara.api.realtime.application.SseHub;
@@ -34,16 +35,19 @@ public class TelemetryService {
     private final AlertRepository alertRepository;
     private final DiagnosticRulesService rulesService;
     private final SseHub sseHub;
+    private final VehicleHealthService healthService;
 
     public TelemetryService(VehicleService vehicleService, TelemetryRepository telemetryRepository,
                             DiagnosticRepository diagnosticRepository, AlertRepository alertRepository,
-                            DiagnosticRulesService rulesService, SseHub sseHub) {
+                            DiagnosticRulesService rulesService, SseHub sseHub,
+                            VehicleHealthService healthService) {
         this.vehicleService = vehicleService;
         this.telemetryRepository = telemetryRepository;
         this.diagnosticRepository = diagnosticRepository;
         this.alertRepository = alertRepository;
         this.rulesService = rulesService;
         this.sseHub = sseHub;
+        this.healthService = healthService;
     }
 
     @Transactional
@@ -62,6 +66,7 @@ public class TelemetryService {
         sseHub.publish(vehicleId, "telemetry", telemetry);
         diagnostics.forEach(item -> sseHub.publish(vehicleId, "diagnostic", item));
         alerts.forEach(item -> sseHub.publish(vehicleId, "alert", item));
+        sseHub.publish(vehicleId, "health", healthService.calculate(vehicleId));
         return new IngestionResponse(telemetry, diagnostics, alerts);
     }
 
@@ -112,6 +117,7 @@ public class TelemetryService {
         if (alert.getStatus() == Alert.Status.OPEN) {
             alert.acknowledge();
             sseHub.publish(vehicleId, "alert-acknowledged", AlertResponse.from(alert));
+            sseHub.publish(vehicleId, "health", healthService.calculate(vehicleId));
         }
         return alert;
     }

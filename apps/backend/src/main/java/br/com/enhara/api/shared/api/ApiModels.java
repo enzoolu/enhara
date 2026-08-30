@@ -3,6 +3,7 @@ package br.com.enhara.api.shared.api;
 import br.com.enhara.api.alerts.domain.Alert;
 import br.com.enhara.api.diagnostics.domain.Diagnostic;
 import br.com.enhara.api.telemetry.domain.TelemetrySample;
+import br.com.enhara.api.trips.domain.Trip;
 import br.com.enhara.api.vehicle.domain.Vehicle;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -108,7 +109,29 @@ public final class ApiModels {
                                     List<TelemetryResponse> telemetryHistory,
                                     List<DiagnosticResponse> activeDiagnostics,
                                     List<AlertResponse> openAlerts,
-                                    boolean simulationRunning) {
+                                    boolean simulationRunning,
+                                    SimulationScenario simulationScenario,
+                                    VehicleHealthResponse health,
+                                    TripResponse activeTrip,
+                                    List<TripResponse> recentTrips) {
+    }
+
+    public enum VehicleHealthStatus { GOOD, ATTENTION, CRITICAL }
+
+    public record VehicleHealthResponse(int score, VehicleHealthStatus status, String label, String explanation,
+                                        List<String> observations, String recommendation) {
+    }
+
+    public record TripResponse(UUID id, UUID vehicleId, Instant startedAt, Instant endedAt,
+                               double distanceKm, double averageSpeedKph, double maxSpeedKph,
+                               int harshAccelerationCount, int harshBrakingCount, long highRpmSeconds,
+                               int drivingScore, boolean experimentalMetrics) {
+        public static TripResponse from(Trip trip) {
+            return new TripResponse(trip.getId(), trip.getVehicleId(), trip.getStartedAt(), trip.getEndedAt(),
+                    trip.getDistanceKm(), trip.getAverageSpeedKph(), trip.getMaxSpeedKph(),
+                    trip.getHarshAccelerationCount(), trip.getHarshBrakingCount(), trip.getHighRpmSeconds(),
+                    trip.getDrivingScore(), true);
+        }
     }
 
     public enum SimulationScenario { NORMAL, OVERHEAT, LOW_BATTERY }

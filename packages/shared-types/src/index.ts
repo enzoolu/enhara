@@ -65,6 +65,36 @@ export interface DashboardData {
   activeDiagnostics: Diagnostic[]
   openAlerts: Alert[]
   simulationRunning: boolean
+  simulationScenario: SimulationScenario
+  health: VehicleHealth
+  activeTrip: Trip | null
+  recentTrips: Trip[]
+}
+
+export type VehicleHealthStatus = 'GOOD' | 'ATTENTION' | 'CRITICAL'
+
+export interface VehicleHealth {
+  score: number
+  status: VehicleHealthStatus
+  label: string
+  explanation: string
+  observations: string[]
+  recommendation: string
+}
+
+export interface Trip {
+  id: string
+  vehicleId: string
+  startedAt: string
+  endedAt: string | null
+  distanceKm: number
+  averageSpeedKph: number
+  maxSpeedKph: number
+  harshAccelerationCount: number
+  harshBrakingCount: number
+  highRpmSeconds: number
+  drivingScore: number
+  experimentalMetrics: true
 }
 
 export interface SimulationStatus {

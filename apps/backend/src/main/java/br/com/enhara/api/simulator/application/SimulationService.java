@@ -7,6 +7,7 @@ import br.com.enhara.api.shared.api.ApiModels.IngestionResponse;
 import br.com.enhara.api.shared.api.ApiModels.SimulationScenario;
 import br.com.enhara.api.shared.api.ApiModels.SimulationStatus;
 import br.com.enhara.api.shared.api.ApiModels.TelemetryRequest;
+import br.com.enhara.api.trips.application.TripService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -21,16 +22,19 @@ import java.util.concurrent.atomic.AtomicReference;
 public class SimulationService {
     private final VehicleService vehicleService;
     private final TelemetryService telemetryService;
+    private final TripService tripService;
     private final ConcurrentHashMap<UUID, State> states = new ConcurrentHashMap<>();
 
-    public SimulationService(VehicleService vehicleService, TelemetryService telemetryService) {
+    public SimulationService(VehicleService vehicleService, TelemetryService telemetryService, TripService tripService) {
         this.vehicleService = vehicleService;
         this.telemetryService = telemetryService;
+        this.tripService = tripService;
     }
 
     public SimulationStatus start(UUID vehicleId) {
         vehicleService.get(vehicleId);
         State state = states.computeIfAbsent(vehicleId, ignored -> new State());
+        tripService.start(vehicleId);
         state.running.set(true);
         if (state.generated.get() == 0) {
             tick(vehicleId);
@@ -41,6 +45,7 @@ public class SimulationService {
     public SimulationStatus stop(UUID vehicleId) {
         vehicleService.get(vehicleId);
         states.computeIfAbsent(vehicleId, ignored -> new State()).running.set(false);
+        tripService.finishIfActive(vehicleId);
         return status(vehicleId);
     }
 

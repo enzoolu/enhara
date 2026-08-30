@@ -5,6 +5,7 @@ import type {
   SimulationStatus,
   TelemetryBatchResponse,
   TelemetryInput,
+  Trip,
   Vehicle,
 } from '../../shared-types/src'
 
@@ -36,5 +37,11 @@ export class EnharaApiClient {
     this.request<TelemetryBatchResponse>('/api/telemetry/batches', {
       method: 'POST', body: JSON.stringify({ vehicleId, samples }),
     })
+  listTrips = (vehicleId: string, limit = 10) =>
+    this.request<Trip[]>(`/api/vehicles/${vehicleId}/trips?limit=${limit}`)
+  startTrip = (vehicleId: string) =>
+    this.request<Trip>(`/api/vehicles/${vehicleId}/trips/start`, { method: 'POST' })
+  finishTrip = (vehicleId: string) =>
+    this.request<Trip>(`/api/vehicles/${vehicleId}/trips/finish`, { method: 'POST' })
   streamUrl = (vehicleId: string) => `${this.baseUrl}/api/vehicles/${vehicleId}/events`
 }

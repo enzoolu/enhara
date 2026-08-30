@@ -9,6 +9,9 @@ import br.com.enhara.api.shared.api.ApiModels.IngestionResponse;
 import br.com.enhara.api.shared.api.ApiModels.TelemetryRequest;
 import br.com.enhara.api.telemetry.application.TelemetryService;
 import br.com.enhara.api.telemetry.domain.TelemetrySample;
+import br.com.enhara.api.health.application.VehicleHealthService;
+import br.com.enhara.api.shared.api.ApiModels.VehicleHealthStatus;
+import br.com.enhara.api.trips.application.TripService;
 import br.com.enhara.api.vehicle.application.VehicleService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +31,8 @@ class TelemetryServiceIntegrationTest {
     @Autowired TelemetryService telemetryService;
     @Autowired AlertRepository alertRepository;
     @Autowired DiagnosticRepository diagnosticRepository;
+    @Autowired VehicleHealthService healthService;
+    @Autowired TripService tripService;
 
     @Test
     void telemetryCreatesAndDeduplicatesCriticalAlertAndDiagnostic() {
@@ -83,5 +88,40 @@ class TelemetryServiceIntegrationTest {
         assertThat(telemetryService.history(vehicle.getId(), 10)).hasSize(2);
         assertThat(telemetryService.alerts(vehicle.getId(), true)).singleElement()
                 .extracting(Alert::getType).isEqualTo(Alert.Type.LOW_BATTERY);
+    }
+
+    @Test
+    void healthBecomesCriticalFromObservedOverheat() {
+        var vehicle = vehicleService.create(new CreateVehicleRequest("Carro health", "8AGZZZ377VT004254",
+                "Demo", "Health", 2025, "TST1A04", 100));
+        telemetryService.ingest(vehicle.getId(), new TelemetryRequest(null, 40.0, 2300, 109.0, 50.0, 30.0,
+                13.8, 70.0, null, null, TelemetrySample.Source.API));
+
+        var health = healthService.calculate(vehicle.getId());
+
+        assertThat(health.status()).isEqualTo(VehicleHealthStatus.CRITICAL);
+        assertThat(health.label()).isEqualTo("Situação crítica");
+        assertThat(health.observations()).anyMatch(item -> item.contains("105 °C"));
+        assertThat(health.recommendation()).contains("avaliação profissional");
+    }
+
+    @Test
+    void tripStartAndFinishPersistSummary() {
+        var vehicle = vehicleService.create(new CreateVehicleRequest("Carro trip", "8AGZZZ377VT004255",
+                "Demo", "Trip", 2025, "TST1A05", 100));
+        var trip = tripService.start(vehicle.getId());
+        telemetryService.ingest(vehicle.getId(), new TelemetryRequest(trip.getStartedAt().plusMillis(1), 20.0,
+                1500, 90.0, 35.0, 20.0, 13.8, 70.0, null, null, TelemetrySample.Source.API));
+        telemetryService.ingest(vehicle.getId(), new TelemetryRequest(trip.getStartedAt().plusMillis(2), 45.0,
+                2600, 91.0, 45.0, 30.0, 13.8, 69.0, null, null, TelemetrySample.Source.API));
+
+        var finished = tripService.finish(vehicle.getId());
+
+        assertThat(finished.getEndedAt()).isNotNull();
+        assertThat(finished.getAverageSpeedKph()).isEqualTo(32.5);
+        assertThat(finished.getMaxSpeedKph()).isEqualTo(45.0);
+        assertThat(tripService.active(vehicle.getId())).isEmpty();
+        assertThat(tripService.history(vehicle.getId(), 10)).singleElement()
+                .extracting(item -> item.getId()).isEqualTo(trip.getId());
     }
 }

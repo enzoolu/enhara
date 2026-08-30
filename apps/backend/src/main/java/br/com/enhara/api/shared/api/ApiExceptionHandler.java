@@ -7,6 +7,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -32,6 +34,18 @@ public class ApiExceptionHandler {
         exception.getBindingResult().getFieldErrors()
                 .forEach(field -> fields.putIfAbsent(field.getField(), field.getDefaultMessage()));
         return error(HttpStatus.BAD_REQUEST, "Dados inválidos", request, fields);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    ResponseEntity<ApiError> parameterValidation(HandlerMethodValidationException exception,
+                                                  HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, "Parâmetros inválidos", request, Map.of());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ApiError> typeMismatch(MethodArgumentTypeMismatchException exception,
+                                           HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, "Parâmetro inválido: " + exception.getName(), request, Map.of());
     }
 
     private ResponseEntity<ApiError> error(HttpStatus status, String message, HttpServletRequest request,

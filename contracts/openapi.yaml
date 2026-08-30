@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Enhara API
   version: 0.1.0
-  description: API do MVP para veículos, telemetria, diagnósticos, alertas, simulação e eventos SSE.
+  description: API do MVP para veículos, telemetria, saúde, viagens, diagnósticos, alertas, simulação e eventos SSE.
   license:
     name: Proprietary
     identifier: LicenseRef-Proprietary
@@ -19,6 +19,8 @@ tags:
     description: Alertas acionáveis e reconhecimento pelo usuário
   - name: Diagnostics
     description: Achados produzidos pelas regras determinísticas
+  - name: Trips
+    description: Viagens e métricas experimentais de condução
   - name: Simulation
     description: Cenários auxiliares para demonstração local
   - name: Realtime
@@ -211,12 +213,91 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/Diagnostic" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/health:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    get:
+      tags: [Vehicles]
+      summary: Calcula a saúde do veículo por regras determinísticas
+      operationId: getVehicleHealth
+      responses:
+        "200":
+          description: Indicador baseado nas leituras e condições ativas
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VehicleHealth" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/trips:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+    get:
+      tags: [Trips]
+      summary: Lista os resumos de viagens do veículo
+      operationId: listVehicleTrips
+      responses:
+        "200":
+          description: Viagens da mais recente para a mais antiga
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Trip" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/trips/active:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    get:
+      tags: [Trips]
+      summary: Consulta a viagem ativa, quando existir
+      operationId: getActiveTrip
+      responses:
+        "200":
+          description: Viagem ativa ou corpo vazio
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Trip"
+                  - type: "null"
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/trips/start:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    post:
+      tags: [Trips]
+      summary: Inicia uma viagem ou retorna a já ativa
+      operationId: startTrip
+      responses:
+        "200":
+          description: Viagem ativa
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Trip" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/trips/finish:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    post:
+      tags: [Trips]
+      summary: Finaliza a viagem ativa e calcula seu resumo
+      operationId: finishTrip
+      responses:
+        "200":
+          description: Resumo final da viagem
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Trip" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /api/vehicles/{vehicleId}/events:
     parameters:
       - $ref: "#/components/parameters/VehicleId"
     get:
       tags: [Realtime]
-      summary: Abre stream SSE com eventos connected, telemetry, diagnostic e alert
+      summary: Abre stream SSE de telemetria, saúde, diagnósticos, alertas e viagens
       operationId: streamVehicleEvents
       responses:
         "200":
@@ -462,6 +543,10 @@ components:
           activeDiagnostics,
           openAlerts,
           simulationRunning,
+          simulationScenario,
+          health,
+          activeTrip,
+          recentTrips,
         ]
       properties:
         vehicle: { $ref: "#/components/schemas/Vehicle" }
@@ -479,6 +564,53 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Alert" }
         simulationRunning: { type: boolean }
+        simulationScenario: { $ref: "#/components/schemas/SimulationScenario" }
+        health: { $ref: "#/components/schemas/VehicleHealth" }
+        activeTrip:
+          oneOf:
+            - $ref: "#/components/schemas/Trip"
+            - type: "null"
+        recentTrips:
+          type: array
+          items: { $ref: "#/components/schemas/Trip" }
+    VehicleHealthStatus:
+      type: string
+      enum: [GOOD, ATTENTION, CRITICAL]
+    VehicleHealth:
+      type: object
+      required: [score, status, label, explanation, observations, recommendation]
+      properties:
+        score: { type: integer, minimum: 0, maximum: 100 }
+        status: { $ref: "#/components/schemas/VehicleHealthStatus" }
+        label: { type: string }
+        explanation: { type: string }
+        observations:
+          type: array
+          items: { type: string }
+        recommendation: { type: string }
+    Trip:
+      type: object
+      required:
+        [id, vehicleId, startedAt, distanceKm, averageSpeedKph, maxSpeedKph,
+         harshAccelerationCount, harshBrakingCount, highRpmSeconds, drivingScore,
+         experimentalMetrics]
+      properties:
+        id: { type: string, format: uuid }
+        vehicleId: { type: string, format: uuid }
+        startedAt: { type: string, format: date-time }
+        endedAt: { type: [string, "null"], format: date-time }
+        distanceKm: { type: number, format: double, minimum: 0 }
+        averageSpeedKph: { type: number, format: double, minimum: 0 }
+        maxSpeedKph: { type: number, format: double, minimum: 0 }
+        harshAccelerationCount: { type: integer, minimum: 0 }
+        harshBrakingCount: { type: integer, minimum: 0 }
+        highRpmSeconds: { type: integer, format: int64, minimum: 0 }
+        drivingScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Indicador experimental e determinístico do MVP.
+        experimentalMetrics: { type: boolean, const: true }
     SimulationScenario:
       type: string
       enum: [NORMAL, OVERHEAT, LOW_BATTERY]
