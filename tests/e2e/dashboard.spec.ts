@@ -24,6 +24,10 @@ test('carrega snapshot e recebe o cenário crítico por SSE', async ({ page, req
   await expect(page.getByRole('button', { name: 'Superaquecimento' })).toHaveClass(/active/)
   await expect(page.getByText('Temperatura do motor elevada')).toBeVisible({ timeout: 22_000 })
   await expect(page.getByText('ENGINE_TEMPERATURE_HIGH')).toBeVisible()
+  await expect(page.getByText('Situação crítica', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Simulação ativa' }).click()
+  await expect(page.getByText('Score experimental').first()).toBeVisible()
 
   expect(pageErrors).toEqual([])
   await page.screenshot({ path: 'docs/cp1/dashboard.png', fullPage: true })

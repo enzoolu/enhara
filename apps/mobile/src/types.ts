@@ -6,6 +6,8 @@ export type {
   Telemetry,
   TelemetryBatchResponse,
   TelemetryInput,
+  Trip,
   Vehicle,
+  VehicleHealth,
   VehicleScenario,
 } from '../../../packages/shared-types/src'

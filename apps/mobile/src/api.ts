@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import type { Alert, DashboardData, TelemetryBatchResponse, TelemetryInput, Vehicle } from './types';
+import type { Alert, DashboardData, TelemetryBatchResponse, TelemetryInput, Trip, Vehicle } from './types';
 
 const developmentHost = Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://localhost:8080';
 export const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') || developmentHost;
@@ -26,4 +26,10 @@ export const api = {
     }),
   acknowledge: (_vehicleId: string, alertId: string) =>
     request<Alert>(`/api/alerts/${alertId}/acknowledge`, { method: 'PATCH' }),
+  startTrip: (vehicleId: string) =>
+    request<Trip>(`/api/vehicles/${vehicleId}/trips/start`, { method: 'POST' }),
+  finishTrip: (vehicleId: string) =>
+    request<Trip>(`/api/vehicles/${vehicleId}/trips/finish`, { method: 'POST' }),
+  stopBackendSimulation: (vehicleId: string) =>
+    request(`/api/vehicles/${vehicleId}/simulation/stop`, { method: 'POST' }),
 };

@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -13,6 +13,7 @@ import {
 import { API_URL, api } from './src/api';
 import type { DashboardData, Telemetry, TelemetryInput, Vehicle, VehicleScenario } from './src/types';
 import { MockVehicleDataSource } from './src/vehicle-data/MockVehicleDataSource';
+import type { VehicleDataSource } from './src/vehicle-data/VehicleDataSource';
 
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
 
@@ -27,7 +28,10 @@ export default function App() {
   const [scenario, setScenario] = useState<VehicleScenario>('NORMAL');
   const [queuedSamples, setQueuedSamples] = useState(0);
   const [lastBatchSize, setLastBatchSize] = useState(0);
-  const dataSource = useRef(new MockVehicleDataSource());
+  const [lastBatchAt, setLastBatchAt] = useState<Date | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [connection, setConnection] = useState<'connecting' | 'online' | 'offline'>('connecting');
+  const dataSource = useRef<VehicleDataSource>(new MockVehicleDataSource());
   const queue = useRef<TelemetryInput[]>([]);
   const flushInFlight = useRef(false);
   const vehicleIdRef = useRef('');
@@ -40,17 +44,22 @@ export default function App() {
     const selectedVehicle = vehicleIdRef.current;
     if (!selectedVehicle || flushInFlight.current || !queue.current.length) return;
     flushInFlight.current = true;
+    setSyncing(true);
     const batch = queue.current.splice(0, 50);
     setQueuedSamples(queue.current.length);
     try {
       const result = await api.ingestBatch(selectedVehicle, batch);
       setLastBatchSize(result.acceptedSamples);
+      setLastBatchAt(new Date());
+      setConnection('online');
     } catch (reason) {
       queue.current.unshift(...batch);
       setQueuedSamples(queue.current.length);
       setError(reason instanceof Error ? reason.message : 'Falha ao sincronizar o lote de telemetria');
+      setConnection('offline');
     } finally {
       flushInFlight.current = false;
+      setSyncing(false);
     }
   }, []);
 
@@ -65,8 +74,10 @@ export default function App() {
         if (selected) setVehicleId(selected);
       }
       if (selected) setData(await api.dashboard(selected));
+      setConnection('online');
     } catch (reason) {
       if (!silent) setError(reason instanceof Error ? reason.message : 'Falha ao conectar');
+      setConnection('offline');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -90,33 +101,40 @@ export default function App() {
 
   useEffect(() => () => dataSource.current.stop(), []);
 
-  const health = useMemo(() => {
-    if (!data) return 0;
-    const penalty = data.openAlerts.reduce((total, alert) => total + (alert.severity === 'CRITICAL' ? 22 : 10), 0);
-    return Math.max(20, 100 - penalty - data.activeDiagnostics.length * 6);
-  }, [data]);
-
-  function toggleLocalSource() {
+  async function toggleLocalSource() {
     if (localRunning) {
       dataSource.current.stop();
       setLocalRunning(false);
-      void flushQueue();
+      await flushQueue();
+      try {
+        await api.finishTrip(vehicleId);
+        await load(true);
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'Falha ao finalizar a viagem');
+      }
       return;
     }
     if (!vehicleId) return;
-    dataSource.current.setScenario(scenario);
-    dataSource.current.start((reading) => {
-      queue.current.push(reading);
-      setQueuedSamples(queue.current.length);
-      const localReading: Telemetry = { ...reading, id: -Date.now(), vehicleId: vehicleIdRef.current };
-      setData((current) => current && ({
-        ...current,
-        latestTelemetry: localReading,
-        telemetryHistory: [...current.telemetryHistory.slice(-19), localReading],
-      }));
-      if (queue.current.length >= 5) void flushQueue();
-    });
-    setLocalRunning(true);
+    try {
+      await api.stopBackendSimulation(vehicleId);
+      await api.startTrip(vehicleId);
+      dataSource.current.setScenario(scenario);
+      dataSource.current.start((reading) => {
+        queue.current.push(reading);
+        setQueuedSamples(queue.current.length);
+        const localReading: Telemetry = { ...reading, id: -Date.now(), vehicleId: vehicleIdRef.current };
+        setData((current) => current && ({
+          ...current,
+          latestTelemetry: localReading,
+          telemetryHistory: [...current.telemetryHistory.slice(-19), localReading],
+        }));
+        if (queue.current.length >= 5) void flushQueue();
+      });
+      setLocalRunning(true);
+    } catch (reason) {
+      setConnection('offline');
+      setError(reason instanceof Error ? reason.message : 'Falha ao iniciar a viagem');
+    }
   }
 
   function chooseScenario(nextScenario: VehicleScenario) {
@@ -146,7 +164,10 @@ export default function App() {
       >
         <View style={styles.header}>
           <Brand />
-          <View style={styles.online}><View style={styles.onlineDot} /><Text style={styles.onlineText}>AO VIVO</Text></View>
+          <View style={[styles.online, connection === 'offline' && styles.offline]}>
+            <View style={[styles.onlineDot, connection === 'offline' && styles.offlineDot]} />
+            <Text style={[styles.onlineText, connection === 'offline' && styles.offlineText]}>{connection === 'online' ? 'BACKEND ONLINE' : connection === 'offline' ? 'OFFLINE' : 'CONECTANDO'}</Text>
+          </View>
         </View>
 
         {error ? <View style={styles.error}><Text style={styles.errorText}>{error}</Text><Text style={styles.errorHint}>Confira EXPO_PUBLIC_API_URL e a rede local.</Text></View> : null}
@@ -164,8 +185,12 @@ export default function App() {
             <View style={styles.heroCard}>
               <View>
                 <Text style={styles.cardLabel}>SAÚDE GERAL</Text>
-                <View style={styles.healthLine}><Text style={styles.healthValue}>{health}</Text><Text style={styles.healthUnit}>/100</Text></View>
-                <Text style={styles.healthCaption}>{health >= 85 ? 'Tudo sob controle' : health >= 60 ? 'Requer atenção' : 'Ação recomendada'}</Text>
+                <View style={styles.healthLine}>
+                  <Text style={[styles.healthValue, data.health.status === 'CRITICAL' && styles.healthCritical, data.health.status === 'ATTENTION' && styles.healthAttention]}>{data.health.score}</Text>
+                  <Text style={styles.healthUnit}>/100</Text>
+                </View>
+                <Text style={styles.healthCaption}>{data.health.label}</Text>
+                <Text style={styles.healthExplanation}>{data.health.explanation}</Text>
               </View>
               <View style={styles.carOrb}><Text style={styles.carGlyph}>⌁</Text></View>
             </View>
@@ -192,7 +217,18 @@ export default function App() {
               <View style={[styles.simDot, localRunning && styles.simDotActive]} />
               <Text style={[styles.simulationText, localRunning && styles.simulationTextActive]}>{localRunning ? 'Parar ECU simulada' : 'Iniciar ECU simulada'}</Text>
             </Pressable>
-            <Text style={styles.queueStatus}>{queuedSamples} na fila · último lote aceito: {lastBatchSize} · fonte: {dataSource.current.name}</Text>
+            <Text style={styles.queueStatus}>{syncing ? 'enviando lote' : `${queuedSamples} na fila`} · último lote: {lastBatchSize} {lastBatchAt ? `às ${lastBatchAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''} · {dataSource.current.name}</Text>
+
+            <SectionTitle kicker="RESUMOS" title="Viagens recentes" count={data.recentTrips.filter((trip) => trip.endedAt).length} />
+            <View style={styles.card}>
+              {data.activeTrip ? <View style={styles.activeTrip}><View style={styles.onlineDot} /><View><Text style={styles.alertTitle}>Viagem em andamento</Text><Text style={styles.alertMessage}>As métricas serão fechadas ao parar a ECU.</Text></View></View> : null}
+              {!data.recentTrips.some((trip) => trip.endedAt) ? <Empty title="Nenhuma viagem concluída" text="Inicie e pare a ECU simulada para gerar um resumo." /> : data.recentTrips.filter((trip) => trip.endedAt).slice(0, 3).map((trip) => (
+                <View style={styles.tripRow} key={trip.id}>
+                  <View><Text style={styles.tripValue}>{number.format(trip.distanceKm)} km</Text><Text style={styles.alertMessage}>{number.format(trip.averageSpeedKph)} km/h média</Text></View>
+                  <View style={styles.tripScore}><Text style={styles.tripScoreLabel}>SCORE EXP.</Text><Text style={styles.tripScoreValue}>{trip.drivingScore}</Text></View>
+                </View>
+              ))}
+            </View>
 
             <SectionTitle kicker="ATENÇÃO" title="Alertas abertos" count={data.openAlerts.length} />
             <View style={styles.card}>
@@ -253,6 +289,9 @@ const styles = StyleSheet.create({
   online: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: '#48EFA012' },
   onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#48EFA0' },
   onlineText: { color: '#6ADAA9', fontSize: 8, fontWeight: '800', letterSpacing: 1 },
+  offline: { backgroundColor: '#FF626212' },
+  offlineDot: { backgroundColor: '#FF6B6B' },
+  offlineText: { color: '#FF9292' },
   eyebrow: { color: '#687B72', fontSize: 8, fontWeight: '800', letterSpacing: 1.7 },
   title: { color: '#F2F9F6', fontSize: 31, fontWeight: '800', letterSpacing: -1.2, marginTop: 5 },
   subtitle: { color: '#788B82', fontSize: 13, marginTop: 3, marginBottom: 20 },
@@ -264,8 +303,11 @@ const styles = StyleSheet.create({
   cardLabel: { color: '#6E8178', fontSize: 8, fontWeight: '800', letterSpacing: 1.5 },
   healthLine: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 10 },
   healthValue: { color: '#54EFA4', fontSize: 50, lineHeight: 54, fontWeight: '800', letterSpacing: -2 },
+  healthAttention: { color: '#FFB85C' },
+  healthCritical: { color: '#FF6B6B' },
   healthUnit: { color: '#577066', fontSize: 11, marginBottom: 8, marginLeft: 3 },
   healthCaption: { color: '#AFC2B9', fontSize: 11, fontWeight: '600' },
+  healthExplanation: { color: '#687B72', fontSize: 8, lineHeight: 12, marginTop: 5, maxWidth: 195 },
   carOrb: { width: 95, height: 95, borderRadius: 48, backgroundColor: '#42E99A13', borderWidth: 1, borderColor: '#57EFA326', alignItems: 'center', justifyContent: 'center' },
   carGlyph: { color: '#56EFA5', fontSize: 58, transform: [{ rotate: '-8deg' }] },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
@@ -293,6 +335,12 @@ const styles = StyleSheet.create({
   count: { minWidth: 28, height: 28, paddingHorizontal: 8, borderRadius: 9, backgroundColor: '#FF75521A', alignItems: 'center', justifyContent: 'center' },
   countText: { color: '#FF977C', fontSize: 11, fontWeight: '800' },
   card: { padding: 10, borderRadius: 17, borderWidth: 1, borderColor: '#C2FFE20D', backgroundColor: '#101B17' },
+  activeTrip: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 11, margin: 4, borderRadius: 11, borderWidth: 1, borderColor: '#48EFA02A', backgroundColor: '#48EFA00C' },
+  tripRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, marginVertical: 3, borderRadius: 11, backgroundColor: '#0B1511' },
+  tripValue: { color: '#D6E5DE', fontSize: 13, fontWeight: '800' },
+  tripScore: { alignItems: 'flex-end', paddingLeft: 15, borderLeftWidth: 1, borderLeftColor: '#FFFFFF0B' },
+  tripScoreLabel: { color: '#61736A', fontSize: 7, fontWeight: '700' },
+  tripScoreValue: { color: '#54EFA4', fontSize: 19, fontWeight: '800' },
   alertRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, backgroundColor: '#0B1511', marginVertical: 4 },
   alertMark: { width: 33, height: 33, borderRadius: 9, backgroundColor: '#FFB85C16', alignItems: 'center', justifyContent: 'center' },
   alertMarkCritical: { backgroundColor: '#FF676719' },

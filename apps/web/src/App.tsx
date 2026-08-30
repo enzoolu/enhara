@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
-import { calculateHealth } from './health'
-import type { Alert, DashboardData, Diagnostic, SimulationScenario, Telemetry, Vehicle } from './types'
+import { healthTone } from './health'
+import type { Alert, DashboardData, Diagnostic, SimulationScenario, Telemetry, Trip, Vehicle, VehicleHealth } from './types'
 
 type Connection = 'connecting' | 'live' | 'offline'
 
@@ -16,7 +16,6 @@ function App() {
   const [actionPending, setActionPending] = useState(false)
   const [error, setError] = useState('')
   const [connection, setConnection] = useState<Connection>('connecting')
-  const [scenario, setScenario] = useState<SimulationScenario>('NORMAL')
 
   useEffect(() => {
     api.listVehicles()
@@ -46,9 +45,7 @@ function App() {
 
   useEffect(() => {
     if (!vehicleId) return
-    setLoading(true)
-    void refresh()
-    setConnection('connecting')
+    queueMicrotask(() => void refresh())
     const events = new EventSource(api.streamUrl(vehicleId))
     events.onopen = () => setConnection('live')
     events.onerror = () => setConnection('offline')
@@ -78,21 +75,41 @@ function App() {
         openAlerts: current.openAlerts.filter((item) => item.id !== alert.id),
       }))
     })
+    events.addEventListener('health', (event) => {
+      const health = JSON.parse(event.data) as VehicleHealth
+      setDashboard((current) => current && ({ ...current, health }))
+    })
+    events.addEventListener('trip-started', (event) => {
+      const trip = JSON.parse(event.data) as Trip
+      setDashboard((current) => current && ({ ...current, activeTrip: trip }))
+    })
+    events.addEventListener('trip-finished', (event) => {
+      const trip = JSON.parse(event.data) as Trip
+      setDashboard((current) => current && ({
+        ...current,
+        activeTrip: null,
+        recentTrips: [trip, ...current.recentTrips.filter((item) => item.id !== trip.id)].slice(0, 8),
+      }))
+    })
     return () => events.close()
   }, [vehicleId, refresh])
 
-  const health = useMemo(() => {
-    if (!dashboard) return 0
-    return calculateHealth(dashboard.openAlerts, dashboard.activeDiagnostics)
-  }, [dashboard])
+  function selectVehicle(nextVehicleId: string) {
+    setLoading(true)
+    setConnection('connecting')
+    setVehicleId(nextVehicleId)
+  }
 
   async function chooseScenario(nextScenario: SimulationScenario) {
     setActionPending(true)
     try {
       await api.setScenario(vehicleId, nextScenario)
       const status = await api.setSimulation(vehicleId, true)
-      setScenario(nextScenario)
-      setDashboard((current) => current && ({ ...current, simulationRunning: status.running }))
+      setDashboard((current) => current && ({
+        ...current,
+        simulationRunning: status.running,
+        simulationScenario: status.scenario,
+      }))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Falha ao selecionar o cenário')
     } finally {
@@ -106,6 +123,7 @@ function App() {
     try {
       const status = await api.setSimulation(vehicleId, !dashboard.simulationRunning)
       setDashboard((current) => current && ({ ...current, simulationRunning: status.running }))
+      await refresh()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Falha ao controlar o simulador')
     } finally {
@@ -149,6 +167,7 @@ function App() {
           <a className="nav-item" href="#telemetry"><span>⌁</span> Telemetria</a>
           <a className="nav-item" href="#diagnostics"><span>◇</span> Diagnósticos</a>
           <a className="nav-item" href="#alerts"><span>!</span> Alertas</a>
+          <a className="nav-item" href="#trips"><span>↗</span> Viagens</a>
         </nav>
         <div className="sidebar-foot">
           <div className="mini-status"><i className={connection} /> API {connection === 'live' ? 'conectada' : 'reconectando'}</div>
@@ -165,13 +184,13 @@ function App() {
           <div className="top-actions">
             <label className="vehicle-select">
               <span>Veículo</span>
-              <select value={vehicleId} onChange={(event) => setVehicleId(event.target.value)}>
+              <select value={vehicleId} onChange={(event) => selectVehicle(event.target.value)}>
                 {vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name} · {vehicle.model}</option>)}
               </select>
             </label>
             <div className="scenario-control" aria-label="Cenário da simulação">
               {(['NORMAL', 'OVERHEAT', 'LOW_BATTERY'] as SimulationScenario[]).map((item) => (
-                <button key={item} className={scenario === item ? 'active' : ''} onClick={() => chooseScenario(item)} disabled={actionPending}>
+                <button key={item} className={dashboard?.simulationScenario === item ? 'active' : ''} onClick={() => chooseScenario(item)} disabled={actionPending}>
                   {item === 'NORMAL' ? 'Normal' : item === 'OVERHEAT' ? 'Superaquecimento' : 'Bateria baixa'}
                 </button>
               ))}
@@ -203,20 +222,21 @@ function App() {
                 </div>
                 <CarIllustration />
               </article>
-              <article className="health-card panel">
+              <article className={`health-card panel ${healthTone(dashboard.health.status)}`}>
                 <span className="eyebrow">SAÚDE DO VEÍCULO</span>
-                <HealthRing value={health} />
-                <strong>{health >= 85 ? 'Tudo sob controle' : health >= 60 ? 'Requer atenção' : 'Ação recomendada'}</strong>
-                <span>{dashboard.activeDiagnostics.length} diagnóstico(s) ativo(s)</span>
+                <HealthRing value={dashboard.health.score} />
+                <strong>{dashboard.health.label}</strong>
+                <span>{dashboard.health.explanation}</span>
+                <p>{dashboard.health.observations[0]}</p>
               </article>
             </section>
 
             <section className="metrics" aria-label="Métricas em tempo real">
-              <Metric label="Velocidade" value={sample ? nf.format(sample.speedKph) : '—'} unit="km/h" tone="green" />
-              <Metric label="Rotação" value={sample ? nf.format(sample.rpm) : '—'} unit="rpm" tone="blue" />
-              <Metric label="Temperatura" value={sample ? nf.format(sample.engineTempC) : '—'} unit="°C" tone={sample && sample.engineTempC >= 105 ? 'red' : 'amber'} />
-              <Metric label="Bateria" value={sample ? nf.format(sample.batteryVoltage) : '—'} unit="V" tone={sample && sample.batteryVoltage < 12 ? 'red' : 'purple'} />
-              <Metric label="Combustível" value={sample ? nf.format(sample.fuelLevelPercent) : '—'} unit="%" tone={sample && sample.fuelLevelPercent <= 15 ? 'red' : 'green'} />
+              <Metric label="Velocidade" value={sample ? nf.format(sample.speedKph) : '—'} unit="km/h" tone="green" level={(sample?.speedKph ?? 0) / 1.8} />
+              <Metric label="Rotação" value={sample ? nf.format(sample.rpm) : '—'} unit="rpm" tone="blue" level={(sample?.rpm ?? 0) / 60} />
+              <Metric label="Temperatura" value={sample ? nf.format(sample.engineTempC) : '—'} unit="°C" tone={sample && sample.engineTempC >= 105 ? 'red' : 'amber'} level={(sample?.engineTempC ?? 0) / 1.25} />
+              <Metric label="Bateria" value={sample ? nf.format(sample.batteryVoltage) : '—'} unit="V" tone={sample && sample.batteryVoltage < 12 ? 'red' : 'purple'} level={(sample?.batteryVoltage ?? 0) / 0.15} />
+              <Metric label="Combustível" value={sample ? nf.format(sample.fuelLevelPercent) : '—'} unit="%" tone={sample && sample.fuelLevelPercent <= 15 ? 'red' : 'green'} level={sample?.fuelLevelPercent ?? 0} />
             </section>
 
             <section className="lower-grid">
@@ -262,6 +282,31 @@ function App() {
                   ))}</div>}
               </article>
 
+              <article className="trips-card panel" id="trips">
+                <div className="section-heading">
+                  <div><span className="eyebrow">HISTÓRICO RECENTE</span><h3>Viagens</h3></div>
+                  <span className={`trip-state ${dashboard.activeTrip ? 'active' : ''}`}>
+                    {dashboard.activeTrip ? 'EM CURSO' : `${dashboard.recentTrips.filter((trip) => trip.endedAt).length} CONCLUÍDAS`}
+                  </span>
+                </div>
+                {dashboard.activeTrip && (
+                  <div className="active-trip">
+                    <span className="pulse-dot" />
+                    <div><strong>Viagem em andamento</strong><small>Iniciada às {timeFormat.format(new Date(dashboard.activeTrip.startedAt))}</small></div>
+                  </div>
+                )}
+                {!dashboard.recentTrips.some((trip) => trip.endedAt) && !dashboard.activeTrip
+                  ? <Empty icon="↗" title="Nenhuma viagem concluída" text="Inicie e pare a simulação para gerar o primeiro resumo." />
+                  : <div className="trip-list">{dashboard.recentTrips.filter((trip) => trip.endedAt).slice(0, 4).map((trip) => (
+                    <div className="trip-row" key={trip.id}>
+                      <div><strong>{nf.format(trip.distanceKm)} km</strong><small>{new Date(trip.startedAt).toLocaleDateString('pt-BR')} · {timeFormat.format(new Date(trip.startedAt))}</small></div>
+                      <div><span>Média</span><strong>{nf.format(trip.averageSpeedKph)} km/h</strong></div>
+                      <div><span>Máxima</span><strong>{nf.format(trip.maxSpeedKph)} km/h</strong></div>
+                      <div className="driving-score"><span>Score experimental</span><strong>{trip.drivingScore}</strong></div>
+                    </div>
+                  ))}</div>}
+              </article>
+
               <article className="location-card panel">
                 <div className="map-grid" />
                 <div className="location-pin"><span>●</span></div>
@@ -287,8 +332,12 @@ function LoadingScreen() {
   return <main className="loading-screen"><Brand /><div className="loader" /><p>Conectando à central veicular…</p></main>
 }
 
-function Metric({ label, value, unit, tone }: { label: string; value: string; unit: string; tone: string }) {
-  return <article className={`metric panel ${tone}`}><span>{label}</span><strong>{value}<small>{unit}</small></strong><i /></article>
+function Metric({ label, value, unit, tone, level }: { label: string; value: string; unit: string; tone: string; level: number }) {
+  const safeLevel = Math.max(0, Math.min(100, level))
+  return <article className={`metric panel ${tone}`}>
+    <span>{label}</span><strong>{value}<small>{unit}</small></strong>
+    <div className="metric-track"><i style={{ width: `${safeLevel}%` }} /></div>
+  </article>
 }
 
 function HealthRing({ value }: { value: number }) {
