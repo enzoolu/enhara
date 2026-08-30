@@ -4,8 +4,8 @@ Tempo sugerido: 6–8 minutos.
 
 ## Preparação
 
-1. Preferencial: `docker compose up --build`.
-2. Fallback: backend no perfil `demo` e web com Vite, conforme o README.
+1. Nesta máquina validada: `reset-demo.cmd` para H2, backend e web.
+2. Em máquina com Docker previamente validado: `docker compose up --build`.
 3. Confirme `/actuator/health`, deixe o dashboard aberto e o terminal em `scripts`.
 
 ## Narrativa
@@ -15,9 +15,9 @@ Tempo sugerido: 6–8 minutos.
 3. **Estado normal (60 s):** selecione Normal e inicie. Aponte velocidade, RPM, temperatura, bateria, histórico e conexão ao vivo.
 4. **Incidente (90 s):** selecione Superaquecimento. A elevação é gradual; ao alcançar 105 °C, `ENGINE_TEMPERATURE_HIGH` fica ativo e um alerta crítico aparece via SSE.
 5. **Ação (30 s):** reconheça o alerta. Explique que o histórico permanece e que outro alerta igual não é aberto enquanto já houver um aberto.
-6. **Mobile (60 s):** inicie a ECU simulada, mostre fila/lote e troque para Bateria baixa. A tela responde localmente antes da sincronização.
+6. **Mobile (60 s):** inicie a ECU simulada, mostre conexão/fila/lote e troque para Bateria baixa. Ao parar, mostre o resumo da viagem.
 7. **Engenharia (60 s):** apresente Flyway, testes verdes, contrato validado e Compose PostgreSQL.
-8. **Limites (30 s):** Bluetooth real, identidade e trips estão conscientemente fora do CP1.
+8. **Limites (30 s):** Bluetooth real, identidade, GPS real e validação PostgreSQL nesta máquina estão conscientemente fora do CP1.
 
 ## Plano B
 

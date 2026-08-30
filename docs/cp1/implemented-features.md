@@ -2,12 +2,13 @@
 
 ## Funcionando e validadas
 
-- Backend Spring Boot inicia, aplica Flyway, expõe health e processa veículo, telemetria, diagnóstico, alerta e SSE.
+- Backend Spring Boot inicia, aplica Flyway, expõe Actuator health e processa veículo, telemetria, diagnóstico, alerta, Vehicle Health, trips e SSE.
 - Ingestão unitária e em lote, latest e history persistem números e timestamps tipados.
 - Regras de temperatura alta, bateria baixa e sobrerrotação; resolução automática, cooldown por alerta aberto e reconhecimento.
-- Dashboard obtém snapshot REST, apresenta gráfico real, recebe SSE e controla os três cenários do simulador.
+- Dashboard obtém snapshot REST, apresenta gráfico/instrumentos, Vehicle Health e trips, recebe SSE e controla os três cenários do simulador.
 - O cenário `OVERHEAT` produz alerta crítico no E2E de navegador sem recarregar a página.
-- Mobile usa `VehicleDataSource`, leitura local, buffer com reenvio e lotes; typecheck e bundle Android passam.
+- Mobile usa `VehicleDataSource`, leitura local, buffer com reenvio, lotes e trips; typecheck e bundle Android passam.
+- Trips explícitas e automáticas pelo simulador persistem resumo e indicadores experimentais de condução.
 - OpenAPI, Maven, builds web/mobile, scripts, CI e fallback H2 estão reproduzíveis.
 
 ## Implementado, mas não validado neste ambiente
@@ -22,4 +23,4 @@
 
 ## Roadmap
 
-Trips automáticas, push, painel de frotas, oficinas, analytics avançado, produção em nuvem e governança LGPD completa não são apresentados como funcionalidades prontas.
+GPS/rotas reais, calibração científica das métricas de condução, push, painel de frotas, oficinas, analytics avançado, produção em nuvem e governança LGPD completa não são apresentados como funcionalidades prontas.
