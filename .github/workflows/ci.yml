@@ -52,4 +52,4 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '24'
-      - run: npx --yes @redocly/cli@latest lint contracts/openapi.yaml
+      - run: npx --yes @redocly/cli@2.49.0 lint contracts/openapi.yaml
