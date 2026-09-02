@@ -40,7 +40,7 @@ Invoke-RestMethod -Method Post -Uri "$baseUrl/api/vehicles/$vehicleId/simulation
 $startedAt = [DateTimeOffset]::UtcNow
 $overheatTicks = 0
 $alerts = @()
-while ($overheatTicks -lt 12 -and $alerts.Count -eq 0) {
+while ($overheatTicks -lt 40 -and $alerts.Count -eq 0) {
   Invoke-RestMethod -Method Post -Uri "$baseUrl/api/vehicles/$vehicleId/simulation/tick" | Out-Null
   $overheatTicks++
   Start-Sleep -Milliseconds $TickIntervalMilliseconds

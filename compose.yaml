@@ -30,8 +30,13 @@ services:
       DATABASE_USERNAME: ${DATABASE_USERNAME:-enhara}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-enhara}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      VEHICLE_PHOTOS_DIR: /app/data/vehicle-photos
+      BRASIL_API_BASE_URL: ${BRASIL_API_BASE_URL:-https://brasilapi.com.br/api}
+      NHTSA_VPIC_BASE_URL: ${NHTSA_VPIC_BASE_URL:-https://vpic.nhtsa.dot.gov/api}
     ports:
       - "8080:8080"
+    volumes:
+      - enhara_vehicle_photos:/app/data/vehicle-photos
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,3 +63,4 @@ services:
 
 volumes:
   enhara_postgres:
+  enhara_vehicle_photos:

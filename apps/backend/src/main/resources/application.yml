@@ -18,6 +18,10 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
 
 server:
   port: ${PORT:8080}
@@ -45,3 +49,8 @@ enhara:
     battery-voltage-low: 12.0
     engine-overspeed-rpm: 6000
     fuel-level-low-percent: 15
+  vehicle-photos:
+    directory: ${VEHICLE_PHOTOS_DIR:.data/vehicle-photos}
+  vehicle-data:
+    brasil-api-base-url: ${BRASIL_API_BASE_URL:https://brasilapi.com.br/api}
+    nhtsa-base-url: ${NHTSA_VPIC_BASE_URL:https://vpic.nhtsa.dot.gov/api}

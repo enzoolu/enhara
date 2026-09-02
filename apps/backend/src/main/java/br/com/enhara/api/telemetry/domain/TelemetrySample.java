@@ -15,7 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "telemetry_samples")
 public class TelemetrySample {
-    public enum Source { SIMULATOR, MOBILE, API }
+    public enum Source { SIMULATED_OBD, SIMULATOR, MOBILE, API }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

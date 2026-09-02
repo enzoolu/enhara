@@ -2,9 +2,13 @@ package br.com.enhara.api.shared.api;
 
 import br.com.enhara.api.alerts.domain.Alert;
 import br.com.enhara.api.diagnostics.domain.Diagnostic;
+import br.com.enhara.api.notes.domain.VehicleNote;
 import br.com.enhara.api.telemetry.domain.TelemetrySample;
 import br.com.enhara.api.trips.domain.Trip;
 import br.com.enhara.api.vehicle.domain.Vehicle;
+import br.com.enhara.api.simulator.domain.SimulationScenario;
+import br.com.enhara.api.simulator.domain.SimulationVehicleProfile.ProfileId;
+import br.com.enhara.api.simulator.domain.StatefulVehicleSimulator;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
@@ -27,7 +31,7 @@ public final class ApiModels {
 
     public record CreateVehicleRequest(
             @NotBlank @Size(max = 80) String name,
-            @NotBlank @Pattern(regexp = "[A-HJ-NPR-Z0-9]{17}", message = "deve ser um VIN válido com 17 caracteres") String vin,
+            @Pattern(regexp = "[A-HJ-NPR-Z0-9]{17}", message = "deve ser um VIN válido com 17 caracteres") String vin,
             @NotBlank @Size(max = 80) String manufacturer,
             @NotBlank @Size(max = 80) String model,
             @Min(1886) @Max(2100) int modelYear,
@@ -74,7 +78,8 @@ public final class ApiModels {
 
     public record TelemetryBatchRequest(
             @NotNull UUID vehicleId,
-            @NotEmpty @Size(max = 200) List<@Valid TelemetryRequest> samples
+            @NotEmpty @Size(max = 200) List<@Valid TelemetryRequest> samples,
+            StatefulVehicleSimulator.Snapshot obdSnapshot
     ) {
     }
 
@@ -111,6 +116,7 @@ public final class ApiModels {
                                     List<AlertResponse> openAlerts,
                                     boolean simulationRunning,
                                     SimulationScenario simulationScenario,
+                                    boolean vehicleDataConnected,
                                     VehicleHealthResponse health,
                                     TripResponse activeTrip,
                                     List<TripResponse> recentTrips) {
@@ -134,10 +140,34 @@ public final class ApiModels {
         }
     }
 
-    public enum SimulationScenario { NORMAL, OVERHEAT, LOW_BATTERY }
-
     public record SimulationStatus(UUID vehicleId, boolean running, SimulationScenario scenario,
-                                   long generatedSamples) {
+                                   long generatedSamples, ProfileId profile) {
+    }
+
+    public enum ConsumptionAvailability { AVAILABLE, INSUFFICIENT_DATA }
+
+    public record VehicleStatisticsResponse(double distanceTrackedKm, Double maxRecordedSpeedKph,
+                                            Double averageConsumptionKmPerLiter,
+                                            ConsumptionAvailability consumptionAvailability,
+                                            long completedTrips) {
+    }
+
+    public record VehicleNoteRequest(
+            @NotBlank @Size(max = 120) String title,
+            @NotBlank @Size(max = 1000) String description,
+            @NotNull VehicleNote.Category category,
+            Instant dueAt
+    ) {
+    }
+
+    public record VehicleNoteResponse(UUID id, UUID vehicleId, String title, String description,
+                                      VehicleNote.Category category, Instant dueAt, VehicleNote.Status status,
+                                      boolean overdue, Instant createdAt, Instant updatedAt, Instant completedAt) {
+        public static VehicleNoteResponse from(VehicleNote note, Instant now) {
+            return new VehicleNoteResponse(note.getId(), note.getVehicleId(), note.getTitle(), note.getDescription(),
+                    note.getCategory(), note.getDueAt(), note.getStatus(), note.isOverdue(now), note.getCreatedAt(),
+                    note.getUpdatedAt(), note.getCompletedAt());
+        }
     }
 
     public record ApiError(Instant timestamp, int status, String error, String message, String path,

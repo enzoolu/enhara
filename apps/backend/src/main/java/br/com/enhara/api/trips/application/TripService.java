@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -40,8 +41,8 @@ public class TripService {
         vehicles.get(vehicleId);
         return trips.findFirstByVehicleIdAndEndedAtIsNullOrderByStartedAtDesc(vehicleId)
                 .orElseGet(() -> {
-                    Trip trip = trips.save(new Trip(vehicleId, Instant.now()));
-                    sseHub.publish(vehicleId, "trip-started", TripResponse.from(trip));
+                    Trip trip = trips.save(new Trip(vehicleId, databaseTimestamp()));
+                    sseHub.publishAfterCommit(vehicleId, "trip-started", TripResponse.from(trip));
                     return trip;
                 });
     }
@@ -51,12 +52,12 @@ public class TripService {
         vehicles.get(vehicleId);
         Trip trip = trips.findFirstByVehicleIdAndEndedAtIsNullOrderByStartedAtDesc(vehicleId)
                 .orElseThrow(() -> new ConflictException("Nenhuma viagem ativa para este veículo."));
-        Instant endedAt = Instant.now();
+        Instant endedAt = databaseTimestamp();
         TripMetrics metrics = calculator.calculate(telemetry
                 .findByVehicleIdAndRecordedAtBetweenOrderByRecordedAtAsc(vehicleId, trip.getStartedAt(), endedAt));
         trip.finish(endedAt, metrics);
         Trip saved = trips.save(trip);
-        sseHub.publish(vehicleId, "trip-finished", TripResponse.from(saved));
+        sseHub.publishAfterCommit(vehicleId, "trip-finished", TripResponse.from(saved));
         return saved;
     }
 
@@ -76,5 +77,12 @@ public class TripService {
         vehicles.get(vehicleId);
         return trips.findByVehicleIdOrderByStartedAtDesc(vehicleId,
                 PageRequest.of(0, Math.min(Math.max(limit, 1), 100)));
+    }
+
+    private static Instant databaseTimestamp() {
+        // PostgreSQL timestamps are stored with microsecond precision. Normalizing the
+        // trip boundary prevents a sample recorded at exactly startedAt from falling
+        // just outside the query after persistence rounds the instant.
+        return Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
 }

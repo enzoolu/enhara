@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "skipLibCheck": true,
+    "ignoreDeprecations": "6.0",
+    "noEmit": false,
+    "rootDir": "../..",
+    "outDir": "../../.data/mobile-simulator-tests"
+  },
+  "include": [
+    "src/types.ts",
+    "src/vehicle-data/StatefulObdSimulator.ts",
+    "src/vehicle-data/StatefulObdSimulator.test.ts",
+    "../../packages/shared-types/src/index.ts"
+  ]
+}

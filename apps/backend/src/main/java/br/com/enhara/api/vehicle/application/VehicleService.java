@@ -32,7 +32,7 @@ public class VehicleService {
 
     @Transactional
     public Vehicle create(CreateVehicleRequest request) {
-        if (repository.existsByVinIgnoreCase(request.vin())) {
+        if (request.vin() != null && !request.vin().isBlank() && repository.existsByVinIgnoreCase(request.vin())) {
             throw new ConflictException("Já existe um veículo com este VIN");
         }
         if (repository.existsByLicensePlateIgnoreCase(request.licensePlate())) {

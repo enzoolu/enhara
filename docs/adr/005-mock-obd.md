@@ -8,7 +8,7 @@ Hardware OBD-II não pode ser requisito para desenvolver, testar ou apresentar o
 
 ## Decision
 
-Fornecer cenários graduais `NORMAL`, `OVERHEAT` e `LOW_BATTERY` pela mesma porta usada por uma futura fonte Bluetooth.
+Fornecer cenários graduais `NORMAL`, `OVERHEAT`, `LOW_VOLTAGE` e `MISFIRE` pela mesma porta usada por uma futura fonte Bluetooth. A implementação stateful e capability-aware está detalhada no ADR 006.
 
 ## Consequences
 

@@ -2,6 +2,8 @@ package br.com.enhara.api.realtime.application;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -42,6 +44,21 @@ public class SseHub {
                 emitter.send(SseEmitter.event().name(eventName).data(payload));
             } catch (IOException | IllegalStateException exception) {
                 remove(vehicleId, emitter);
+            }
+        });
+    }
+
+    /** Ensures clients only observe state that has already been committed. */
+    public void publishAfterCommit(UUID vehicleId, String eventName, Object payload) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            publish(vehicleId, eventName, payload);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                publish(vehicleId, eventName, payload);
             }
         });
     }

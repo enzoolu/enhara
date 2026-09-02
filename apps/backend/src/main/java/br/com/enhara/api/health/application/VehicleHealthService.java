@@ -60,25 +60,25 @@ public class VehicleHealthService {
 
         if (latest.getBatteryVoltage() < 11.8) {
             score -= 35;
-            observations.add("Tensão da bateria observada abaixo de 11,8 V.");
+            observations.add("Tensão elétrica do módulo observada abaixo de 11,8 V.");
         } else if (latest.getBatteryVoltage() < 12.4) {
             score -= 20;
-            observations.add("Tensão da bateria observada abaixo de 12,4 V.");
+            observations.add("Tensão elétrica do módulo observada abaixo de 12,4 V.");
         } else if (latest.getBatteryVoltage() < 13.0) {
             score -= 8;
-            observations.add("Tensão da bateria em faixa de atenção.");
+            observations.add("Tensão elétrica do módulo em faixa de atenção.");
         }
 
         score -= activeDiagnostics.stream().mapToInt(this::diagnosticPenalty).sum();
         score -= openAlerts.stream().mapToInt(this::alertPenalty).sum();
         if (!activeDiagnostics.isEmpty()) {
-            observations.add(activeDiagnostics.size() + " diagnóstico(s) ativo(s) detectado(s) por regras determinísticas.");
+            observations.add(activeDiagnostics.size() + " finding(s) ativo(s) detectado(s) por regras determinísticas.");
         }
         if (!openAlerts.isEmpty()) {
             observations.add(openAlerts.size() + " alerta(s) aberto(s) requer(em) revisão.");
         }
         if (observations.isEmpty()) {
-            observations.add("Temperatura, bateria e diagnósticos sem anomalias nas leituras atuais.");
+            observations.add("Temperatura, tensão elétrica e findings sem anomalias nas leituras atuais.");
         }
 
         score = Math.max(0, Math.min(100, score));

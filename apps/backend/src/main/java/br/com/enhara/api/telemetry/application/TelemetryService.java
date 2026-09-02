@@ -62,11 +62,13 @@ public class TelemetryService {
         DiagnosticRulesService.Evaluation evaluation = rulesService.evaluate(sample);
         TelemetryResponse telemetry = TelemetryResponse.from(sample);
         List<DiagnosticResponse> diagnostics = evaluation.diagnostics().stream().map(DiagnosticResponse::from).toList();
+        List<DiagnosticResponse> resolvedDiagnostics = evaluation.resolvedDiagnostics().stream().map(DiagnosticResponse::from).toList();
         List<AlertResponse> alerts = evaluation.alerts().stream().map(AlertResponse::from).toList();
-        sseHub.publish(vehicleId, "telemetry", telemetry);
-        diagnostics.forEach(item -> sseHub.publish(vehicleId, "diagnostic", item));
-        alerts.forEach(item -> sseHub.publish(vehicleId, "alert", item));
-        sseHub.publish(vehicleId, "health", healthService.calculate(vehicleId));
+        sseHub.publishAfterCommit(vehicleId, "telemetry", telemetry);
+        diagnostics.forEach(item -> sseHub.publishAfterCommit(vehicleId, "diagnostic", item));
+        resolvedDiagnostics.forEach(item -> sseHub.publishAfterCommit(vehicleId, "diagnostic-resolved", item));
+        alerts.forEach(item -> sseHub.publishAfterCommit(vehicleId, "alert", item));
+        sseHub.publishAfterCommit(vehicleId, "health", healthService.calculate(vehicleId));
         return new IngestionResponse(telemetry, diagnostics, alerts);
     }
 
@@ -116,8 +118,8 @@ public class TelemetryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Alerta não encontrado: " + alertId));
         if (alert.getStatus() == Alert.Status.OPEN) {
             alert.acknowledge();
-            sseHub.publish(vehicleId, "alert-acknowledged", AlertResponse.from(alert));
-            sseHub.publish(vehicleId, "health", healthService.calculate(vehicleId));
+            sseHub.publishAfterCommit(vehicleId, "alert-acknowledged", AlertResponse.from(alert));
+            sseHub.publishAfterCommit(vehicleId, "health", healthService.calculate(vehicleId));
         }
         return alert;
     }

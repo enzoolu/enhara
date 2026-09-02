@@ -1,21 +1,62 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from './api'
+import { CapabilityPanel } from './CapabilityPanel'
 import { healthTone } from './health'
-import type { Alert, DashboardData, Diagnostic, SimulationScenario, Telemetry, Trip, Vehicle, VehicleHealth } from './types'
+import { NotesPanel } from './NotesPanel'
+import { DEFAULT_CARD_KEYS, effectiveAvailability, liveValue, parameterMeta, supportedMetricKeys } from './obd'
+import { VehicleProfilePage } from './VehicleProfilePage'
+import type {
+  Alert,
+  DashboardData,
+  Diagnostic,
+  SimulatedObdDtc,
+  SimulatedObdSnapshot,
+  SimulationScenario,
+  Telemetry,
+  Trip,
+  Vehicle,
+  VehicleHealth,
+  VehicleNote,
+  VehicleNoteInput,
+  VehiclePhoto,
+  VehicleProfile,
+  VehicleProfileKey,
+  VehicleStatistics,
+} from './types'
 
 type Connection = 'connecting' | 'live' | 'offline'
+type Page = 'dashboard' | 'statistics' | 'vehicle'
 
 const nf = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
+const preciseNf = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 })
 const timeFormat = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+const dateTimeFormat = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 
 function App() {
+  const [page, setPage] = useState<Page>('dashboard')
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [vehicleId, setVehicleId] = useState('')
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
+  const [obd, setObd] = useState<SimulatedObdSnapshot | null>(null)
+  const [statistics, setStatistics] = useState<VehicleStatistics | null>(null)
+  const [notes, setNotes] = useState<VehicleNote[]>([])
+  const [trips, setTrips] = useState<Trip[]>([])
+  const [profile, setProfile] = useState<VehicleProfile | null>(null)
+  const [photos, setPhotos] = useState<VehiclePhoto[]>([])
+  const [cardKeys, setCardKeys] = useState<string[]>([])
+  const [customizing, setCustomizing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [actionPending, setActionPending] = useState(false)
+  const [notePending, setNotePending] = useState(false)
+  const [profilePending, setProfilePending] = useState(false)
   const [error, setError] = useState('')
   const [connection, setConnection] = useState<Connection>('connecting')
+  const [clock, setClock] = useState(() => Date.now())
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setClock(Date.now()), 1_000)
+    return () => window.clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     api.listVehicles()
@@ -30,12 +71,49 @@ function App() {
       })
   }, [])
 
+  const refreshObd = useCallback(async () => {
+    if (!vehicleId) return
+    setObd(await api.simulatedObdState(vehicleId))
+  }, [vehicleId])
+
+  const refreshNotes = useCallback(async () => {
+    if (!vehicleId) return
+    setNotes(await api.listNotes(vehicleId, true))
+  }, [vehicleId])
+
+  const refreshVehicleProfile = useCallback(async () => {
+    if (!vehicleId) return
+    try {
+      const [profileData, photoData, noteData] = await Promise.all([
+        api.vehicleProfile(vehicleId),
+        api.listVehiclePhotos(vehicleId),
+        api.listNotes(vehicleId, true),
+      ])
+      setProfile(profileData)
+      setPhotos(photoData)
+      setNotes(noteData)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Não foi possível carregar o perfil do veículo')
+    }
+  }, [vehicleId])
+
   const refresh = useCallback(async () => {
     if (!vehicleId) return
     try {
       setError('')
-      const data = await api.dashboard(vehicleId)
-      setDashboard(data)
+      const [dashboardData, obdData, statisticsData, noteData, tripData] = await Promise.all([
+        api.dashboard(vehicleId),
+        api.simulatedObdState(vehicleId),
+        api.statistics(vehicleId),
+        api.listNotes(vehicleId, true),
+        api.listTrips(vehicleId, 100),
+      ])
+      setDashboard(dashboardData)
+      setObd(obdData)
+      setCardKeys(loadCardSelection(obdData, vehicleId))
+      setStatistics(statisticsData)
+      setNotes(noteData)
+      setTrips(tripData)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível carregar os dados')
     } finally {
@@ -51,11 +129,11 @@ function App() {
     events.onerror = () => setConnection('offline')
     events.addEventListener('telemetry', (event) => {
       const telemetry = JSON.parse(event.data) as Telemetry
-      setDashboard((current) => current && ({
-        ...current,
-        latestTelemetry: telemetry,
+      setDashboard((current) => current && ({ ...current, latestTelemetry: telemetry,
         telemetryHistory: [...current.telemetryHistory.slice(-59), telemetry],
-      }))
+        vehicleDataConnected: telemetry.source !== 'API' }))
+      setStatistics((current) => current && ({ ...current, maxRecordedSpeedKph: Math.max(current.maxRecordedSpeedKph ?? 0, telemetry.speedKph) }))
+      void refreshObd().catch(() => undefined)
     })
     events.addEventListener('alert', (event) => {
       const alert = JSON.parse(event.data) as Alert
@@ -63,17 +141,16 @@ function App() {
     })
     events.addEventListener('diagnostic', (event) => {
       const diagnostic = JSON.parse(event.data) as Diagnostic
-      setDashboard((current) => current && ({
-        ...current,
-        activeDiagnostics: [diagnostic, ...current.activeDiagnostics.filter((item) => item.code !== diagnostic.code)],
-      }))
+      setDashboard((current) => current && ({ ...current, activeDiagnostics: [diagnostic, ...current.activeDiagnostics.filter((item) => item.code !== diagnostic.code)] }))
+    })
+    events.addEventListener('diagnostic-resolved', (event) => {
+      const diagnostic = JSON.parse(event.data) as Diagnostic
+      setDashboard((current) => current && ({ ...current,
+        activeDiagnostics: current.activeDiagnostics.filter((item) => item.id !== diagnostic.id && item.code !== diagnostic.code) }))
     })
     events.addEventListener('alert-acknowledged', (event) => {
       const alert = JSON.parse(event.data) as Alert
-      setDashboard((current) => current && ({
-        ...current,
-        openAlerts: current.openAlerts.filter((item) => item.id !== alert.id),
-      }))
+      setDashboard((current) => current && ({ ...current, openAlerts: current.openAlerts.filter((item) => item.id !== alert.id) }))
     })
     events.addEventListener('health', (event) => {
       const health = JSON.parse(event.data) as VehicleHealth
@@ -85,18 +162,31 @@ function App() {
     })
     events.addEventListener('trip-finished', (event) => {
       const trip = JSON.parse(event.data) as Trip
-      setDashboard((current) => current && ({
-        ...current,
-        activeTrip: null,
-        recentTrips: [trip, ...current.recentTrips.filter((item) => item.id !== trip.id)].slice(0, 8),
-      }))
+      setDashboard((current) => current && ({ ...current, activeTrip: null, recentTrips: [trip, ...current.recentTrips.filter((item) => item.id !== trip.id)].slice(0, 8) }))
+      setTrips((current) => [trip, ...current.filter((item) => item.id !== trip.id)].slice(0, 100))
+      void api.statistics(vehicleId).then(setStatistics).catch(() => undefined)
     })
     return () => events.close()
-  }, [vehicleId, refresh])
+  }, [vehicleId, refresh, refreshObd])
+
+  useEffect(() => {
+    if (vehicleId) queueMicrotask(() => void refreshVehicleProfile())
+  }, [vehicleId, refreshVehicleProfile])
+
+  const currentReading = Boolean(dashboard?.vehicleDataConnected && dashboard.latestTelemetry
+    && clock - Date.parse(dashboard.latestTelemetry.recordedAt) <= 5_000
+    && obd?.liveData.some((value) => clock - Date.parse(value.observedAt) <= 5_000))
 
   function selectVehicle(nextVehicleId: string) {
     setLoading(true)
     setConnection('connecting')
+    setDashboard(null)
+    setObd(null)
+    setStatistics(null)
+    setNotes([])
+    setTrips([])
+    setProfile(null)
+    setPhotos([])
     setVehicleId(nextVehicleId)
   }
 
@@ -105,11 +195,9 @@ function App() {
     try {
       await api.setScenario(vehicleId, nextScenario)
       const status = await api.setSimulation(vehicleId, true)
-      setDashboard((current) => current && ({
-        ...current,
-        simulationRunning: status.running,
-        simulationScenario: status.scenario,
-      }))
+      setDashboard((current) => current && ({ ...current, simulationRunning: status.running,
+        simulationScenario: status.scenario, vehicleDataConnected: status.running }))
+      await refreshObd()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Falha ao selecionar o cenário')
     } finally {
@@ -121,8 +209,7 @@ function App() {
     if (!dashboard) return
     setActionPending(true)
     try {
-      const status = await api.setSimulation(vehicleId, !dashboard.simulationRunning)
-      setDashboard((current) => current && ({ ...current, simulationRunning: status.running }))
+      await api.setSimulation(vehicleId, !dashboard.simulationRunning)
       await refresh()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Falha ao controlar o simulador')
@@ -134,194 +221,292 @@ function App() {
   async function acknowledge(alertId: string) {
     try {
       await api.acknowledge(vehicleId, alertId)
-      setDashboard((current) => current && ({
-        ...current,
-        openAlerts: current.openAlerts.filter((item) => item.id !== alertId),
-      }))
+      setDashboard((current) => current && ({ ...current, openAlerts: current.openAlerts.filter((item) => item.id !== alertId) }))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Falha ao reconhecer o alerta')
     }
   }
 
-  if (loading && !dashboard) return <LoadingScreen />
-
-  if (!vehicles.length) {
-    return (
-      <main className="center-state">
-        <Brand />
-        <h1>Nenhum veículo cadastrado</h1>
-        <p>Inicie a API com o perfil <code>demo</code> ou crie um veículo pela API para abrir a central.</p>
-        {error && <div className="error-banner">{error}</div>}
-      </main>
-    )
+  function toggleCard(key: string) {
+    if (!obd || !supportedMetricKeys(obd).includes(key)) return
+    setCardKeys((current) => {
+      const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
+      localStorage.setItem(cardStorageKey(vehicleId), JSON.stringify(next))
+      return next
+    })
   }
 
-  const sample = dashboard?.latestTelemetry
+  async function noteAction(action: () => Promise<unknown>) {
+    setNotePending(true)
+    try {
+      setError('')
+      await action()
+      await refreshNotes()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Não foi possível salvar a nota')
+      throw reason
+    } finally {
+      setNotePending(false)
+    }
+  }
+
+  const notesProps = {
+    notes,
+    busy: notePending,
+    onCreate: (input: VehicleNoteInput) => noteAction(() => api.createNote(vehicleId, input)),
+    onUpdate: (noteId: string, input: VehicleNoteInput) => noteAction(() => api.updateNote(vehicleId, noteId, input)),
+    onComplete: (noteId: string) => noteAction(() => api.completeNote(vehicleId, noteId)),
+    onReopen: (noteId: string) => noteAction(() => api.reopenNote(vehicleId, noteId)),
+    onDelete: (noteId: string) => noteAction(() => api.deleteNote(vehicleId, noteId)),
+  }
+
+  async function profileAction(action: () => Promise<VehicleProfile>) {
+    setProfilePending(true)
+    try {
+      setError('')
+      setProfile(await action())
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Não foi possível atualizar o perfil do veículo')
+      throw reason
+    } finally {
+      setProfilePending(false)
+    }
+  }
+
+  async function photoAction(action: () => Promise<unknown>) {
+    setProfilePending(true)
+    try {
+      setError('')
+      await action()
+      setPhotos(await api.listVehiclePhotos(vehicleId))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Não foi possível atualizar as fotos')
+      throw reason
+    } finally {
+      setProfilePending(false)
+    }
+  }
+
+  if (loading && !dashboard && page !== 'vehicle') return <LoadingScreen />
+
+  if (!vehicles.length) {
+    return <main className="center-state"><Brand /><h1>Nenhum veículo cadastrado</h1><p>Cadastre um veículo ou inicie a API com o perfil <code>demo</code>.</p>{error && <div className="error-banner">{error}</div>}</main>
+  }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <Brand />
         <nav aria-label="Navegação principal">
-          <a className="nav-item active" href="#overview"><span>⌁</span> Visão geral</a>
-          <a className="nav-item" href="#telemetry"><span>⌁</span> Telemetria</a>
-          <a className="nav-item" href="#diagnostics"><span>◇</span> Diagnósticos</a>
-          <a className="nav-item" href="#alerts"><span>!</span> Alertas</a>
-          <a className="nav-item" href="#trips"><span>↗</span> Viagens</a>
+          <button className={`nav-item ${page === 'dashboard' ? 'active' : ''}`} onClick={() => setPage('dashboard')}><span>⌁</span><div>Painel principal<small>Estado do veículo</small></div></button>
+          <button className={`nav-item ${page === 'statistics' ? 'active' : ''}`} onClick={() => setPage('statistics')}><span>↗</span><div>Minhas estatísticas<small>Histórico monitorado</small></div></button>
+          <button className={`nav-item ${page === 'vehicle' ? 'active' : ''}`} onClick={() => setPage('vehicle')}><span>◇</span><div>Meu carro<small>Cadastro e fontes</small></div></button>
         </nav>
-        <div className="sidebar-foot">
-          <div className="mini-status"><i className={connection} /> API {connection === 'live' ? 'conectada' : 'reconectando'}</div>
-          <small>Enhara CP1 · 2026</small>
-        </div>
+        <div className="sidebar-foot"><ConnectionLabel connection={connection} /><small>Enhara · assistência conectada</small></div>
       </aside>
 
-      <main className="content" id="overview">
+      <main className="content">
         <header className="topbar">
-          <div>
-            <span className="eyebrow">CENTRAL VEICULAR</span>
-            <h1>Olá, acompanhe seu carro.</h1>
-          </div>
+          <div><span className="eyebrow">{page === 'dashboard' ? 'PAINEL PRINCIPAL' : page === 'statistics' ? 'HISTÓRICO ENHARA' : 'PERFIL DO VEÍCULO'}</span><h1>{page === 'dashboard' ? 'Seu carro, com clareza.' : page === 'statistics' ? 'Minhas estatísticas' : 'Meu carro'}</h1></div>
           <div className="top-actions">
-            <label className="vehicle-select">
-              <span>Veículo</span>
-              <select value={vehicleId} onChange={(event) => selectVehicle(event.target.value)}>
-                {vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name} · {vehicle.model}</option>)}
-              </select>
-            </label>
-            <div className="scenario-control" aria-label="Cenário da simulação">
-              {(['NORMAL', 'OVERHEAT', 'LOW_BATTERY'] as SimulationScenario[]).map((item) => (
-                <button key={item} className={dashboard?.simulationScenario === item ? 'active' : ''} onClick={() => chooseScenario(item)} disabled={actionPending}>
-                  {item === 'NORMAL' ? 'Normal' : item === 'OVERHEAT' ? 'Superaquecimento' : 'Bateria baixa'}
-                </button>
-              ))}
-            </div>
-            <button className={`simulation-button ${dashboard?.simulationRunning ? 'running' : ''}`}
-                    onClick={toggleSimulation} disabled={actionPending || !dashboard}>
-              <span className="pulse-dot" />
-              {dashboard?.simulationRunning ? 'Simulação ativa' : 'Iniciar simulação'}
-            </button>
+            <label className="vehicle-select"><span>Veículo</span><select value={vehicleId} onChange={(event) => selectVehicle(event.target.value)}>{vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name} · {vehicle.model}</option>)}</select></label>
+            {page !== 'vehicle' && <button className={`simulation-button ${dashboard?.simulationRunning ? 'running' : ''}`} onClick={toggleSimulation} disabled={actionPending || !dashboard}><span className="pulse-dot" />{dashboard?.simulationRunning ? 'ECU conectada' : 'Conectar ECU'}</button>}
           </div>
         </header>
 
         {error && <div className="error-banner"><span>{error}</span><button onClick={() => setError('')}>×</button></div>}
 
-        {dashboard && (
-          <>
-            <section className="hero-grid">
-              <article className="vehicle-hero panel">
-                <div className="vehicle-copy">
-                  <span className="live-pill"><i className={connection} /> {connection === 'live' ? 'AO VIVO' : 'RECONECTANDO'}</span>
-                  <h2>{dashboard.vehicle.name}</h2>
-                  <p>{dashboard.vehicle.manufacturer} {dashboard.vehicle.model} · {dashboard.vehicle.modelYear}</p>
-                  <dl>
-                    <div><dt>VIN</dt><dd>{dashboard.vehicle.vin.slice(-8)}</dd></div>
-                    <div><dt>Placa</dt><dd>{dashboard.vehicle.licensePlate}</dd></div>
-                    <div><dt>Odômetro</dt><dd>{nf.format(dashboard.vehicle.odometerKm)} km</dd></div>
-                    <div><dt>Fonte</dt><dd>{sample?.source ?? '—'}</dd></div>
-                  </dl>
-                </div>
-                <CarIllustration />
-              </article>
-              <article className={`health-card panel ${healthTone(dashboard.health.status)}`}>
-                <span className="eyebrow">SAÚDE DO VEÍCULO</span>
-                <HealthRing value={dashboard.health.score} />
-                <strong>{dashboard.health.label}</strong>
-                <span>{dashboard.health.explanation}</span>
-                <p>{dashboard.health.observations[0]}</p>
-              </article>
-            </section>
-
-            <section className="metrics" aria-label="Métricas em tempo real">
-              <Metric label="Velocidade" value={sample ? nf.format(sample.speedKph) : '—'} unit="km/h" tone="green" level={(sample?.speedKph ?? 0) / 1.8} />
-              <Metric label="Rotação" value={sample ? nf.format(sample.rpm) : '—'} unit="rpm" tone="blue" level={(sample?.rpm ?? 0) / 60} />
-              <Metric label="Temperatura" value={sample ? nf.format(sample.engineTempC) : '—'} unit="°C" tone={sample && sample.engineTempC >= 105 ? 'red' : 'amber'} level={(sample?.engineTempC ?? 0) / 1.25} />
-              <Metric label="Bateria" value={sample ? nf.format(sample.batteryVoltage) : '—'} unit="V" tone={sample && sample.batteryVoltage < 12 ? 'red' : 'purple'} level={(sample?.batteryVoltage ?? 0) / 0.15} />
-              <Metric label="Combustível" value={sample ? nf.format(sample.fuelLevelPercent) : '—'} unit="%" tone={sample && sample.fuelLevelPercent <= 15 ? 'red' : 'green'} level={sample?.fuelLevelPercent ?? 0} />
-            </section>
-
-            <section className="lower-grid">
-              <article className="chart-card panel" id="telemetry">
-                <div className="section-heading">
-                  <div><span className="eyebrow">ÚLTIMOS 60 REGISTROS</span><h3>Ritmo da viagem</h3></div>
-                  <span className="updated">Atualizado {sample ? timeFormat.format(new Date(sample.recordedAt)) : '—'}</span>
-                </div>
-                <LineChart data={dashboard.telemetryHistory} />
-                <div className="chart-legend"><span className="speed-key">Velocidade</span><span className="temp-key">Temperatura</span></div>
-              </article>
-
-              <article className="alerts-card panel" id="alerts">
-                <div className="section-heading">
-                  <div><span className="eyebrow">ATENÇÃO</span><h3>Alertas abertos</h3></div>
-                  <span className="counter">{dashboard.openAlerts.length}</span>
-                </div>
-                <div className="alert-list">
-                  {!dashboard.openAlerts.length && <Empty icon="✓" title="Nenhum alerta aberto" text="O veículo está operando dentro dos limites." />}
-                  {dashboard.openAlerts.slice(0, 5).map((alert) => (
-                    <div className={`alert-row ${alert.severity.toLowerCase()}`} key={alert.id}>
-                      <span className="alert-icon">!</span>
-                      <div><strong>{alert.title}</strong><p>{alert.message}</p><small>{timeFormat.format(new Date(alert.createdAt))}</small></div>
-                      <button onClick={() => acknowledge(alert.id)} title="Reconhecer alerta">✓</button>
-                    </div>
-                  ))}
-                </div>
-              </article>
-
-              <article className="diagnostics-card panel" id="diagnostics">
-                <div className="section-heading">
-                  <div><span className="eyebrow">LEITURA OBD</span><h3>Diagnósticos ativos</h3></div>
-                  <span className="counter muted">{dashboard.activeDiagnostics.length}</span>
-                </div>
-                {!dashboard.activeDiagnostics.length
-                  ? <Empty icon="◇" title="Nenhum código ativo" text="A leitura contínua não encontrou falhas." />
-                  : <div className="diagnostic-list">{dashboard.activeDiagnostics.map((diagnostic) => (
-                    <div className="diagnostic-row" key={diagnostic.id}>
-                      <code>{diagnostic.code}</code>
-                      <div><strong>{diagnostic.description}</strong><small>Detectado {timeFormat.format(new Date(diagnostic.detectedAt))}</small></div>
-                      <span className={`severity ${diagnostic.severity.toLowerCase()}`}>{diagnostic.severity}</span>
-                    </div>
-                  ))}</div>}
-              </article>
-
-              <article className="trips-card panel" id="trips">
-                <div className="section-heading">
-                  <div><span className="eyebrow">HISTÓRICO RECENTE</span><h3>Viagens</h3></div>
-                  <span className={`trip-state ${dashboard.activeTrip ? 'active' : ''}`}>
-                    {dashboard.activeTrip ? 'EM CURSO' : `${dashboard.recentTrips.filter((trip) => trip.endedAt).length} CONCLUÍDAS`}
-                  </span>
-                </div>
-                {dashboard.activeTrip && (
-                  <div className="active-trip">
-                    <span className="pulse-dot" />
-                    <div><strong>Viagem em andamento</strong><small>Iniciada às {timeFormat.format(new Date(dashboard.activeTrip.startedAt))}</small></div>
-                  </div>
-                )}
-                {!dashboard.recentTrips.some((trip) => trip.endedAt) && !dashboard.activeTrip
-                  ? <Empty icon="↗" title="Nenhuma viagem concluída" text="Inicie e pare a simulação para gerar o primeiro resumo." />
-                  : <div className="trip-list">{dashboard.recentTrips.filter((trip) => trip.endedAt).slice(0, 4).map((trip) => (
-                    <div className="trip-row" key={trip.id}>
-                      <div><strong>{nf.format(trip.distanceKm)} km</strong><small>{new Date(trip.startedAt).toLocaleDateString('pt-BR')} · {timeFormat.format(new Date(trip.startedAt))}</small></div>
-                      <div><span>Média</span><strong>{nf.format(trip.averageSpeedKph)} km/h</strong></div>
-                      <div><span>Máxima</span><strong>{nf.format(trip.maxSpeedKph)} km/h</strong></div>
-                      <div className="driving-score"><span>Score experimental</span><strong>{trip.drivingScore}</strong></div>
-                    </div>
-                  ))}</div>}
-              </article>
-
-              <article className="location-card panel">
-                <div className="map-grid" />
-                <div className="location-pin"><span>●</span></div>
-                <div className="location-copy">
-                  <span className="eyebrow">LOCALIZAÇÃO ATUAL</span>
-                  <h3>{sample?.latitude ? 'São Paulo, SP' : 'Aguardando posição'}</h3>
-                  <p>{sample?.latitude ? `${sample.latitude.toFixed(5)}, ${sample.longitude?.toFixed(5)}` : 'O próximo pacote de telemetria atualizará o mapa.'}</p>
-                </div>
-              </article>
-            </section>
-          </>
-        )}
+        {page === 'vehicle'
+          ? profile
+            ? <VehicleProfilePage key={vehicleId} vehicle={vehicles.find((item) => item.id === vehicleId) ?? vehicles[0]} profile={profile} photos={photos} busy={profilePending} notesPanel={<NotesPanel {...notesProps} />} photoUrl={api.vehiclePhotoUrl} onUpdate={(fields) => profileAction(() => api.updateVehicleProfile(vehicleId, fields))} onConfirm={(field: VehicleProfileKey) => profileAction(() => api.confirmVehicleProfile(vehicleId, [field]))} onEnrich={(fipeCode, selection, force) => profileAction(() => api.enrichVehicleProfile(vehicleId, fipeCode, selection, force))} onListFipeBrands={api.listFipeBrands} onListFipeModels={api.listFipeModels} onListFipeYears={api.listFipeYears} onUploadPhoto={(file, caption) => photoAction(() => api.uploadVehiclePhoto(vehicleId, file, caption))} onDeletePhoto={(photoId) => photoAction(() => api.deleteVehiclePhoto(vehicleId, photoId))} />
+            : <div className="panel profile-loading"><div className="loader" /><p>Carregando dados persistidos do veículo…</p></div>
+          : dashboard && obd && statistics && (page === 'dashboard'
+            ? <DashboardPage dashboard={dashboard} obd={obd} connection={connection} currentReading={currentReading} cardKeys={cardKeys} customizing={customizing} setCustomizing={setCustomizing} toggleCard={toggleCard} chooseScenario={chooseScenario} actionPending={actionPending} acknowledge={acknowledge} notesPanel={<NotesPanel {...notesProps} />} />
+            : <StatisticsPage dashboard={dashboard} obd={obd} statistics={statistics} trips={trips} notes={notes} currentReading={currentReading} notesPanel={<NotesPanel {...notesProps} />} />)}
       </main>
+
+      <nav className="mobile-nav" aria-label="Navegação móvel">
+        <button className={page === 'dashboard' ? 'active' : ''} onClick={() => setPage('dashboard')}><span>⌁</span>Painel</button>
+        <button className={page === 'statistics' ? 'active' : ''} onClick={() => setPage('statistics')}><span>↗</span>Estatísticas</button>
+        <button className={page === 'vehicle' ? 'active' : ''} onClick={() => setPage('vehicle')}><span>◇</span>Meu carro</button>
+      </nav>
     </div>
   )
+}
+
+interface DashboardPageProps {
+  dashboard: DashboardData
+  obd: SimulatedObdSnapshot
+  connection: Connection
+  currentReading: boolean
+  cardKeys: string[]
+  customizing: boolean
+  setCustomizing: (value: boolean) => void
+  toggleCard: (key: string) => void
+  chooseScenario: (scenario: SimulationScenario) => Promise<void>
+  actionPending: boolean
+  acknowledge: (alertId: string) => Promise<void>
+  notesPanel: React.ReactNode
+}
+
+function DashboardPage({ dashboard, obd, connection, currentReading, cardKeys, customizing, setCustomizing, toggleCard, chooseScenario, actionPending, acknowledge, notesPanel }: DashboardPageProps) {
+  const sample = dashboard.latestTelemetry
+  return <>
+    <section className="status-hero panel">
+      <div className="vehicle-overview">
+        <div className="connection-row"><span className={`state-pill ${currentReading ? 'connected' : 'paused'}`}><i />{currentReading ? 'ECU conectada' : 'ECU desconectada'}</span><span className="origin-pill">Origem: {telemetryOriginLabel(sample?.source)}</span></div>
+        <h2>{dashboard.vehicle.name}</h2>
+        <p>{dashboard.vehicle.manufacturer} {dashboard.vehicle.model} · {dashboard.vehicle.modelYear} · {dashboard.vehicle.licensePlate}</p>
+        <div className="read-state">
+          <div><span>Estado exibido</span><strong>{currentReading ? 'Leitura atual' : sample ? 'Última leitura válida' : 'Aguardando primeira leitura'}</strong></div>
+          <div><span>Última leitura</span><strong>{sample ? dateTimeFormat.format(new Date(sample.recordedAt)) : 'Sem leitura registrada'}</strong></div>
+          <div><span>Canal com a API</span><strong><ConnectionLabel connection={connection} /></strong></div>
+        </div>
+      </div>
+      <div className={`health-summary ${healthTone(dashboard.health.status)}`}><span className="eyebrow">VEHICLE HEALTH</span><HealthRing value={dashboard.health.score} /><div><strong>{dashboard.health.label}</strong><p>{dashboard.health.explanation}</p></div></div>
+    </section>
+
+    <section className="section-block">
+      <div className="section-heading page-section-heading"><div><span className="eyebrow">DADOS DA ECU</span><h3>{currentReading ? 'Estado atual' : 'Últimos valores válidos'}</h3></div><button className="secondary-button" onClick={() => setCustomizing(!customizing)}>⚙ Personalizar cards</button></div>
+      {customizing && <CardCustomizer snapshot={obd} selected={cardKeys} onToggle={toggleCard} onClose={() => setCustomizing(false)} />}
+      {!cardKeys.length ? <div className="panel empty-state"><span>＋</span><div><strong>Nenhum card selecionado</strong><p>Escolha entre os parâmetros suportados pela ECU.</p></div></div> : <div className="metric-grid">{cardKeys.map((key) => <ObdMetricCard key={key} snapshot={obd} parameterKey={key} current={currentReading} />)}</div>}
+    </section>
+
+    <section className="dashboard-grid">
+      <article className="panel chart-card">
+        <div className="section-heading"><div><span className="eyebrow">HISTÓRICO REGISTRADO</span><h3>Velocidade e arrefecimento</h3></div><span className="updated">{sample ? `Até ${timeFormat.format(new Date(sample.recordedAt))}` : 'Sem dados'}</span></div>
+        <LineChart data={dashboard.telemetryHistory} />
+        {!!dashboard.telemetryHistory.length && <div className="chart-legend"><span className="speed-key">Velocidade</span><span className="temp-key">Temperatura</span></div>}
+      </article>
+      <article className="panel alerts-card">
+        <div className="section-heading"><div><span className="eyebrow">ALERTAS ENHARA</span><h3>Alertas abertos</h3></div><span className="counter">{dashboard.openAlerts.length}</span></div>
+        {!dashboard.openAlerts.length ? <Empty icon="✓" title="Nenhum alerta aberto" text="Nenhum alerta derivado está ativo agora." /> : <div className="alert-list">{dashboard.openAlerts.slice(0, 5).map((alert) => <div className={`alert-row ${alert.severity.toLowerCase()}`} key={alert.id}><span className="alert-icon">!</span><div><strong>{alert.title}</strong><p>{alert.message}</p><small>{dateTimeFormat.format(new Date(alert.createdAt))}</small></div><button onClick={() => acknowledge(alert.id)} title="Reconhecer alerta">✓</button></div>)}</div>}
+      </article>
+      <article className="panel findings-card">
+        <div className="section-heading"><div><span className="eyebrow">FINDINGS DO ENHARA</span><h3>Condições detectadas</h3></div><span className="counter muted">{dashboard.activeDiagnostics.length}</span></div>
+        <p className="section-intro">Regras derivadas da telemetria. Não são códigos DTC gravados pela ECU.</p>
+        {!dashboard.activeDiagnostics.length ? <Empty icon="◇" title="Nenhum finding ativo" text="As regras do Enhara não detectaram condição anormal." /> : <div className="diagnostic-list">{dashboard.activeDiagnostics.map((item) => <div className="diagnostic-row" key={item.id}><code>{item.code}</code><div><strong>{item.description}</strong><small>Detectado {dateTimeFormat.format(new Date(item.detectedAt))}</small></div><span className={`severity ${item.severity.toLowerCase()}`}>{item.severity}</span></div>)}</div>}
+      </article>
+      <article className="panel trip-card">
+        <div className="section-heading"><div><span className="eyebrow">HISTÓRICO RELEVANTE</span><h3>Viagens recentes</h3></div><span className={`trip-state ${dashboard.activeTrip ? 'active' : ''}`}>{dashboard.activeTrip ? 'EM CURSO' : `${dashboard.recentTrips.filter((trip) => trip.endedAt).length} CONCLUÍDAS`}</span></div>
+        {dashboard.activeTrip && <div className="active-trip"><span className="pulse-dot" /><div><strong>Viagem em andamento</strong><small>Iniciada às {timeFormat.format(new Date(dashboard.activeTrip.startedAt))}</small></div></div>}
+        {!dashboard.recentTrips.some((trip) => trip.endedAt) && !dashboard.activeTrip ? <Empty icon="↗" title="Nenhuma viagem concluída" text="A primeira viagem aparecerá após encerrar uma sessão." /> : <div className="trip-list">{dashboard.recentTrips.filter((trip) => trip.endedAt).slice(0, 4).map((trip) => <TripRow key={trip.id} trip={trip} />)}</div>}
+      </article>
+      <div className="notes-slot">{notesPanel}</div>
+      <article className="panel simulation-lab">
+        <div className="section-heading"><div><span className="eyebrow">AMBIENTE DE DEMONSTRAÇÃO</span><h3>Cenário da ECU</h3></div><span className="source-badge">Somente ECU/OBD é simulado</span></div>
+        <p className="section-intro">O cenário altera o estado do veículo e da ECU; a interface apenas lê o resultado.</p>
+        <div className="scenario-control">{(['NORMAL', 'OVERHEAT', 'LOW_VOLTAGE', 'MISFIRE'] as SimulationScenario[]).map((scenario) => <button key={scenario} className={dashboard.simulationScenario === scenario ? 'active' : ''} onClick={() => chooseScenario(scenario)} disabled={actionPending}>{scenarioLabel(scenario)}</button>)}</div>
+      </article>
+    </section>
+  </>
+}
+
+function StatisticsPage({ dashboard, obd, statistics, trips, notes, currentReading, notesPanel }: { dashboard: DashboardData; obd: SimulatedObdSnapshot; statistics: VehicleStatistics; trips: Trip[]; notes: VehicleNote[]; currentReading: boolean; notesPanel: React.ReactNode }) {
+  const completedTrips = trips.filter((trip) => trip.endedAt)
+  const activity = useMemo(() => buildRecentActivity(completedTrips, notes, obd.dtcs), [completedTrips, notes, obd.dtcs])
+  return <>
+    <section className="stats-summary">
+      <StatCard eyebrow="MONITORADO PELO ENHARA" label="Distância registrada" value={`${preciseNf.format(statistics.distanceTrackedKm)} km`} helper={`${statistics.completedTrips} ${statistics.completedTrips === 1 ? 'viagem concluída' : 'viagens concluídas'} · não é o odômetro total`} />
+      <StatCard eyebrow="TELEMETRIA REGISTRADA" label="Velocidade máxima" value={statistics.maxRecordedSpeedKph == null ? 'Indisponível' : `${nf.format(statistics.maxRecordedSpeedKph)} km/h`} helper={statistics.maxRecordedSpeedKph == null ? 'Nenhuma leitura válida' : 'Maior valor persistido'} />
+      <StatCard eyebrow="DADOS SUFICIENTES" label="Consumo médio" value={statistics.averageConsumptionKmPerLiter == null ? 'Indisponível' : `${nf.format(statistics.averageConsumptionKmPerLiter)} km/l`} helper={statistics.averageConsumptionKmPerLiter == null ? 'Falta combustível consumido confiável' : 'Calculado pelo Enhara'} muted={statistics.averageConsumptionKmPerLiter == null} />
+      <StatCard eyebrow="MEMÓRIA DA ECU" label="DTCs registrados" value={String(obd.dtcs.length)} helper={obd.milOn ? 'MIL acesa pela ECU' : 'MIL apagada'} tone={obd.milOn ? 'warning' : 'normal'} />
+    </section>
+
+    <section className="statistics-grid">
+      <article className="panel activity-chart-card"><div className="section-heading"><div><span className="eyebrow">SOMENTE VIAGENS REAIS</span><h3>Distância por viagem</h3></div><span className="source-badge">{completedTrips.length} registros</span></div><TripBars trips={completedTrips.slice(0, 10).reverse()} /></article>
+      <article className="panel dtc-card">
+        <div className="section-heading"><div><span className="eyebrow">CÓDIGOS DA ECU</span><h3>DTCs da ECU simulada</h3></div><span className={`mil-badge ${obd.milOn ? 'on' : ''}`}>MIL {obd.milOn ? 'ACESA' : 'APAGADA'}</span></div>
+        <p className="section-intro">Memória própria da ECU. Estes códigos não são findings nem alertas do Enhara.</p>
+        {!obd.dtcs.length ? <Empty icon="◇" title="Nenhum DTC registrado" text="A ECU simulada não possui códigos visíveis na memória." /> : <div className="dtc-list">{obd.dtcs.map((dtc) => <DtcRow key={dtc.code} dtc={dtc} milOn={obd.milOn} />)}</div>}
+      </article>
+      <article className="panel recent-activity-card"><div className="section-heading"><div><span className="eyebrow">EVENTOS REGISTRADOS</span><h3>Atividade recente</h3></div></div>{!activity.length ? <Empty icon="↻" title="Sem atividade recente" text="Viagens, notas e DTCs aparecerão aqui quando existirem." /> : <div className="timeline">{activity.map((item) => <div className={`timeline-row ${item.tone}`} key={item.id}><i /><div><span>{item.kind}</span><strong>{item.title}</strong><p>{item.detail}</p><small>{dateTimeFormat.format(new Date(item.at))}</small></div></div>)}</div>}</article>
+      <div className="notes-slot">{notesPanel}</div>
+      <div className="capabilities-slot"><CapabilityPanel snapshot={obd} current={currentReading}
+        origin={telemetryOriginLabel(dashboard.latestTelemetry?.source)} telemetryHistory={dashboard.telemetryHistory} /></div>
+      <article className="panel readiness-card"><div className="section-heading"><div><span className="eyebrow">MONITORES DA ECU</span><h3>Readiness</h3></div></div><div className="readiness-list">{obd.readiness.map((item) => <div key={item.monitor}><span>{readinessLabel(item.monitor)}</span><strong className={item.status.toLowerCase().replaceAll('_', '-')}>{readinessStatusLabel(item.status)}</strong></div>)}</div><small className="footnote">Status informado pela ECU simulada; não representa inspeção mecânica.</small></article>
+      <article className={`panel health-detail ${healthTone(dashboard.health.status)}`}><span className="eyebrow">VEHICLE HEALTH DERIVADO</span><h3>{dashboard.health.label}</h3><p>{dashboard.health.explanation}</p><ul>{dashboard.health.observations.map((item) => <li key={item}>{item}</li>)}</ul><strong>{dashboard.health.recommendation}</strong></article>
+    </section>
+  </>
+}
+
+function CardCustomizer({ snapshot, selected, onToggle, onClose }: { snapshot: SimulatedObdSnapshot; selected: string[]; onToggle: (key: string) => void; onClose: () => void }) {
+  return <div className="panel card-customizer"><div><strong>Escolha os cards do painel</strong><p>Apenas PIDs declarados como suportados por este perfil podem ser selecionados.</p></div><button className="close-button" onClick={onClose}>×</button><div className="customizer-options">{supportedMetricKeys(snapshot).map((key) => <label key={key}><input type="checkbox" checked={selected.includes(key)} onChange={() => onToggle(key)} /><span>{parameterMeta(key).shortLabel}</span></label>)}</div></div>
+}
+
+function ObdMetricCard({ snapshot, parameterKey, current }: { snapshot: SimulatedObdSnapshot; parameterKey: string; current: boolean }) {
+  const capability = snapshot.capabilities.find((item) => item.key === parameterKey)
+  if (!capability || capability.status !== 'SUPPORTED') return null
+  const item = liveValue(snapshot, parameterKey)
+  const availability = effectiveAvailability(snapshot, capability)
+  const meta = parameterMeta(parameterKey)
+  return <article className={`panel obd-metric ${meta.tone}`}><div className="metric-top"><span>{meta.shortLabel}</span><i /></div>{item ? <strong>{preciseNf.format(item.value)} <small>{item.unit}</small></strong> : <strong className="empty-value">—</strong>}<p>{availability === 'SUPPORTED_NO_DATA' ? 'Suportado · aguardando leitura válida' : availability === 'STALE' ? 'Último valor · dado antigo' : current ? 'Estado atual da ECU' : 'Último valor válido'}</p>{item && <small>Serviço {item.service} · PID {item.pid} · {timeFormat.format(new Date(item.observedAt))}</small>}</article>
+}
+
+function StatCard({ eyebrow, label, value, helper, muted, tone = 'normal' }: { eyebrow: string; label: string; value: string; helper: string; muted?: boolean; tone?: 'normal' | 'warning' }) {
+  return <article className={`panel stat-card ${muted ? 'muted' : ''} ${tone}`}><span className="eyebrow">{eyebrow}</span><h3>{label}</h3><strong>{value}</strong><p>{helper}</p></article>
+}
+
+function DtcRow({ dtc, milOn }: { dtc: SimulatedObdDtc; milOn: boolean }) {
+  return <div className={`dtc-row ${dtc.active ? 'active' : 'memory'}`}>
+    <div className="dtc-technical">
+      <div className="dtc-code-line"><code>{dtc.code}</code><span className={`dtc-presence ${dtc.active ? 'present' : ''}`}>{dtc.active ? 'Presente' : 'Memória'}</span></div>
+      <div className="dtc-statuses">{dtc.statuses.map((status) => <span key={status}>{dtcStatusLabel(status)}</span>)}</div>
+      <small className="technical-evidence">Evidência técnica da ECU: {dtc.description}</small>
+      <dl className="dtc-metadata">
+        <div><dt>Primeira ocorrência</dt><dd>{dateTimeFormat.format(new Date(dtc.firstDetectedAt))}</dd></div>
+        <div><dt>Última ocorrência</dt><dd>{dateTimeFormat.format(new Date(dtc.lastDetectedAt))}</dd></div>
+        <div><dt>MIL</dt><dd>{milOn ? 'Acesa' : 'Apagada'}</dd></div>
+        <div><dt>Freeze frame</dt><dd>{dtc.freezeFrame ? dateTimeFormat.format(new Date(dtc.freezeFrame.capturedAt)) : 'Não disponível'}</dd></div>
+      </dl>
+    </div>
+    <div className="dtc-explanation"><span>Explicação amigável</span><p>{dtcSimpleExplanation(dtc.code)}</p><small>Esta explicação auxilia a leitura; não substitui a evidência técnica nem afirma uma causa mecânica.</small></div>
+  </div>
+}
+
+function TripBars({ trips }: { trips: Trip[] }) {
+  if (!trips.length) return <Empty icon="▥" title="Sem dados para o gráfico" text="Nenhuma viagem concluída foi registrada pelo Enhara." />
+  const max = Math.max(...trips.map((trip) => trip.distanceKm), 0.01)
+  return <div className="trip-bars" aria-label="Distância registrada por viagem">{trips.map((trip) => <div className="trip-bar-column" key={trip.id}><div className="bar-value">{preciseNf.format(trip.distanceKm)} km</div><div className="bar-track"><i style={{ height: `${trip.distanceKm / max * 100}%` }} /></div><small>{new Date(trip.startedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</small></div>)}</div>
+}
+
+function TripRow({ trip }: { trip: Trip }) {
+  return <div className="trip-row"><div><strong>{preciseNf.format(trip.distanceKm)} km</strong><small>{dateTimeFormat.format(new Date(trip.startedAt))}</small></div><div><span>Média</span><strong>{nf.format(trip.averageSpeedKph)} km/h</strong></div><div><span>Máxima registrada</span><strong>{nf.format(trip.maxSpeedKph)} km/h</strong></div></div>
+}
+
+function LineChart({ data }: { data: Telemetry[] }) {
+  const width = 720
+  const height = 230
+  const plot = (values: number[], min: number, max: number) => values.map((value, index) => {
+    const x = 18 + (index / Math.max(values.length - 1, 1)) * (width - 36)
+    const y = 18 + (1 - (value - min) / Math.max(max - min, 1)) * (height - 42)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  if (data.length < 2) return <div className="chart-empty">São necessárias pelo menos duas leituras válidas para desenhar o histórico.</div>
+  const speedMax = Math.max(10, ...data.map((item) => item.speedKph))
+  const tempMin = Math.min(...data.map((item) => item.engineTempC)) - 5
+  const tempMax = Math.max(tempMin + 10, ...data.map((item) => item.engineTempC)) + 5
+  return <svg className="line-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="Histórico real de velocidade e temperatura do líquido de arrefecimento"><defs><linearGradient id="speedFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#c78cff" stopOpacity=".24" /><stop offset="1" stopColor="#c78cff" stopOpacity="0" /></linearGradient></defs>{[45, 90, 135, 180].map((y) => <line key={y} x1="18" x2={width - 18} y1={y} y2={y} />)}<polygon points={`18,${height - 24} ${plot(data.map((item) => item.speedKph), 0, speedMax)} ${width - 18},${height - 24}`} fill="url(#speedFill)" /><polyline points={plot(data.map((item) => item.speedKph), 0, speedMax)} className="speed-line" /><polyline points={plot(data.map((item) => item.engineTempC), tempMin, tempMax)} className="temp-line" /></svg>
+}
+
+function HealthRing({ value }: { value: number }) {
+  return <div className="health-ring" style={{ '--health': `${value * 3.6}deg` } as React.CSSProperties}><div><strong>{value}</strong><span>/ 100</span></div></div>
+}
+
+function ConnectionLabel({ connection }: { connection: Connection }) {
+  const label = connection === 'live' ? 'API conectada' : connection === 'connecting' ? 'Conectando à API' : 'API reconectando'
+  return <span className={`connection-label ${connection}`}><i />{label}</span>
+}
+
+function telemetryOriginLabel(source: Telemetry['source'] | undefined) {
+  if (source === 'SIMULATED_OBD' || source === 'SIMULATOR') return 'ECU/OBD simulada'
+  if (source === 'MOBILE') return 'ECU/OBD via mobile'
+  if (source === 'API') return 'integração via API'
+  return 'aguardando telemetria'
+}
+
+function Empty({ icon, title, text }: { icon: string; title: string; text: string }) {
+  return <div className="empty-state"><span>{icon}</span><div><strong>{title}</strong><p>{text}</p></div></div>
 }
 
 function Brand() {
@@ -332,61 +517,68 @@ function LoadingScreen() {
   return <main className="loading-screen"><Brand /><div className="loader" /><p>Conectando à central veicular…</p></main>
 }
 
-function Metric({ label, value, unit, tone, level }: { label: string; value: string; unit: string; tone: string; level: number }) {
-  const safeLevel = Math.max(0, Math.min(100, level))
-  return <article className={`metric panel ${tone}`}>
-    <span>{label}</span><strong>{value}<small>{unit}</small></strong>
-    <div className="metric-track"><i style={{ width: `${safeLevel}%` }} /></div>
-  </article>
+function readStoredCards(vehicleId: string): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(cardStorageKey(vehicleId)) ?? '[]')
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === 'string') ? parsed : []
+  } catch {
+    return []
+  }
 }
 
-function HealthRing({ value }: { value: number }) {
-  return (
-    <div className="health-ring" style={{ '--health': `${value * 3.6}deg` } as React.CSSProperties}>
-      <div><strong>{value}</strong><span>/ 100</span></div>
-    </div>
-  )
+function loadCardSelection(snapshot: SimulatedObdSnapshot, vehicleId: string) {
+  const supported = supportedMetricKeys(snapshot)
+  const stored = readStoredCards(vehicleId).filter((key) => supported.includes(key))
+  const defaults = DEFAULT_CARD_KEYS.filter((key) => supported.includes(key))
+  return stored.length ? stored : defaults.length ? defaults : supported.slice(0, 5)
 }
 
-function CarIllustration() {
-  return (
-    <svg className="car" viewBox="0 0 520 230" role="img" aria-label="Silhueta de automóvel">
-      <defs><linearGradient id="carPaint" x1="0" x2="1"><stop stopColor="#172b24"/><stop offset=".55" stopColor="#3af59b"/><stop offset="1" stopColor="#16372b"/></linearGradient></defs>
-      <ellipse cx="270" cy="193" rx="205" ry="21" fill="#020706" opacity=".7" />
-      <path d="M52 153c9-31 29-50 69-59l45-45c14-14 30-20 51-20h104c24 0 45 8 62 27l39 44c31 8 48 25 52 53l-8 22h-42c-6-30-25-47-52-47-28 0-48 18-53 48H188c-6-30-26-48-54-48-27 0-46 17-52 47H48l-9-15 13-7z" fill="url(#carPaint)" />
-      <path d="M180 57c10-10 20-14 37-14h96c20 0 35 5 49 21l26 30H145l35-37z" fill="#091512" stroke="#6bffbd" strokeOpacity=".45" />
-      <path d="M244 46v46M315 46l45 47" stroke="#48d995" strokeOpacity=".35" />
-      <circle cx="134" cy="174" r="35" fill="#08100e" stroke="#345c4d" strokeWidth="8"/><circle cx="134" cy="174" r="14" fill="#8afac7" opacity=".6"/>
-      <circle cx="371" cy="174" r="35" fill="#08100e" stroke="#345c4d" strokeWidth="8"/><circle cx="371" cy="174" r="14" fill="#8afac7" opacity=".6"/>
-      <path d="M57 142h55M408 111h39" stroke="#c0ffe2" strokeWidth="5" strokeLinecap="round" opacity=".8"/>
-    </svg>
-  )
+function cardStorageKey(vehicleId: string) {
+  return `enhara.dashboard.cards.${vehicleId}`
 }
 
-function LineChart({ data }: { data: Telemetry[] }) {
-  const width = 640
-  const height = 210
-  const plot = (values: number[], min: number, max: number) => values.map((value, index) => {
-    const x = 18 + (index / Math.max(values.length - 1, 1)) * (width - 36)
-    const y = 18 + (1 - (value - min) / Math.max(max - min, 1)) * (height - 42)
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
-  if (data.length < 2) return <div className="chart-empty">Aguardando a série de telemetria…</div>
-  return (
-    <svg className="line-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-label="Histórico de velocidade e temperatura">
-      <defs>
-        <linearGradient id="speedFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#4df5a5" stopOpacity=".3"/><stop offset="1" stopColor="#4df5a5" stopOpacity="0"/></linearGradient>
-      </defs>
-      {[40, 80, 120, 160].map((y) => <line key={y} x1="18" x2="622" y1={y} y2={y} stroke="#ffffff" strokeOpacity=".06" />)}
-      <polygon points={`18,190 ${plot(data.map((item) => item.speedKph), 0, 130)} 622,190`} fill="url(#speedFill)" />
-      <polyline points={plot(data.map((item) => item.speedKph), 0, 130)} fill="none" stroke="#4df5a5" strokeWidth="3" vectorEffect="non-scaling-stroke" />
-      <polyline points={plot(data.map((item) => item.engineTempC), 60, 125)} fill="none" stroke="#ffb65c" strokeWidth="2" strokeDasharray="6 5" vectorEffect="non-scaling-stroke" />
-    </svg>
-  )
+function scenarioLabel(scenario: SimulationScenario) {
+  switch (scenario) {
+    case 'NORMAL': return 'Normal'
+    case 'OVERHEAT': return 'Superaquecimento'
+    case 'LOW_VOLTAGE': return 'Tensão baixa'
+    case 'MISFIRE': return 'Falha de combustão'
+    case 'LOW_BATTERY': return 'Tensão baixa (legado)'
+  }
 }
 
-function Empty({ icon, title, text }: { icon: string; title: string; text: string }) {
-  return <div className="empty"><span>{icon}</span><strong>{title}</strong><p>{text}</p></div>
+function dtcSimpleExplanation(code: string) {
+  const explanations: Record<string, string> = {
+    P0217: 'A ECU registrou temperatura do motor acima da faixa esperada.',
+    P0562: 'A ECU registrou tensão elétrica do sistema abaixo da faixa esperada.',
+    P0300: 'A ECU identificou falhas de combustão distribuídas entre os cilindros.',
+  }
+  return explanations[code] ?? 'A ECU registrou um código técnico que requer interpretação conforme o veículo.'
+}
+
+function dtcStatusLabel(status: SimulatedObdDtc['statuses'][number]) {
+  const labels = { PENDING: 'Pendente', CONFIRMED: 'Confirmado', PERMANENT: 'Permanente' }
+  return labels[status]
+}
+
+function readinessLabel(monitor: string) {
+  const labels: Record<string, string> = { MISFIRE: 'Falha de combustão', FUEL_SYSTEM: 'Sistema de combustível', COMPREHENSIVE_COMPONENT: 'Componentes abrangentes', CATALYST: 'Catalisador', OXYGEN_SENSOR: 'Sensor de oxigênio' }
+  return labels[monitor] ?? monitor
+}
+
+function readinessStatusLabel(status: string) {
+  const labels: Record<string, string> = { READY: 'Pronto', NOT_READY: 'Ainda não concluído', NOT_SUPPORTED: 'Não suportado' }
+  return labels[status] ?? status
+}
+
+interface ActivityItem { id: string; at: string; kind: string; title: string; detail: string; tone: 'green' | 'amber' | 'blue' }
+
+function buildRecentActivity(trips: Trip[], notes: VehicleNote[], dtcs: SimulatedObdDtc[]): ActivityItem[] {
+  return [
+    ...trips.filter((trip) => trip.endedAt).map((trip): ActivityItem => ({ id: `trip-${trip.id}`, at: trip.endedAt!, kind: 'Viagem concluída', title: `${preciseNf.format(trip.distanceKm)} km monitorados`, detail: `Máxima registrada de ${nf.format(trip.maxSpeedKph)} km/h.`, tone: 'green' })),
+    ...notes.map((note): ActivityItem => ({ id: `note-${note.id}`, at: note.updatedAt, kind: 'Nota do usuário', title: note.title, detail: note.status === 'COMPLETED' ? 'Marcada como concluída.' : note.overdue ? 'Lembrete em atraso.' : 'Nota atualizada.', tone: 'blue' })),
+    ...dtcs.map((dtc): ActivityItem => ({ id: `dtc-${dtc.code}-${dtc.lastDetectedAt}`, at: dtc.lastDetectedAt, kind: 'DTC da ECU', title: dtc.code, detail: dtcSimpleExplanation(dtc.code), tone: 'amber' })),
+  ].sort((first, second) => new Date(second.at).getTime() - new Date(first.at).getTime()).slice(0, 8)
 }
 
 export default App

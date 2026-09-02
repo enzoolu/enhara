@@ -1,6 +1,7 @@
 package br.com.enhara.api.telemetry.api;
 
 import br.com.enhara.api.telemetry.application.TelemetryService;
+import br.com.enhara.api.simulator.application.SimulationService;
 import br.com.enhara.api.shared.api.ApiModels.TelemetryBatchRequest;
 import br.com.enhara.api.shared.api.ApiModels.TelemetryBatchResponse;
 import br.com.enhara.api.shared.api.ApiModels.IngestionResponse;
@@ -27,14 +28,19 @@ import java.util.UUID;
 @RequestMapping("/api")
 public class TelemetryController {
     private final TelemetryService telemetry;
+    private final SimulationService simulation;
 
-    public TelemetryController(TelemetryService telemetry) {
+    public TelemetryController(TelemetryService telemetry, SimulationService simulation) {
         this.telemetry = telemetry;
+        this.simulation = simulation;
     }
 
     @PostMapping("/telemetry/batches")
     @ResponseStatus(HttpStatus.CREATED)
     public TelemetryBatchResponse ingestBatch(@Valid @RequestBody TelemetryBatchRequest request) {
+        if (request.obdSnapshot() != null) {
+            return simulation.ingestExternalBatch(request.vehicleId(), request.samples(), request.obdSnapshot());
+        }
         return telemetry.ingestBatch(request.vehicleId(), request.samples());
     }
 

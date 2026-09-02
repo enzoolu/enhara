@@ -19,7 +19,7 @@ public class BatteryVoltageLowRule implements DiagnosticRule {
     @Override public String code() { return "BATTERY_VOLTAGE_LOW"; }
     @Override public Alert.Type alertType() { return Alert.Type.LOW_BATTERY; }
     @Override public Diagnostic.Severity severity() { return Diagnostic.Severity.WARNING; }
-    @Override public String title() { return "Bateria com baixa tensão"; }
+    @Override public String title() { return "Tensão elétrica baixa"; }
 
     @Override
     public Optional<Finding> evaluate(TelemetrySample sample) {

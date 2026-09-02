@@ -8,3 +8,5 @@ enhara:
   demo:
     seed: false
     auto-start-simulation: false
+  vehicle-photos:
+    directory: target/test-vehicle-photos

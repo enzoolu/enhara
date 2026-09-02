@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:enhara;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;DEFAULT_NULL_ORDERING=HIGH
+    url: jdbc:h2:file:../../.data/demo/enhara;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     username: sa
     password:
     driver-class-name: org.h2.Driver
@@ -13,3 +13,5 @@ enhara:
   demo:
     seed: true
     auto-start-simulation: false
+  vehicle-photos:
+    directory: ../../.data/demo/vehicle-photos

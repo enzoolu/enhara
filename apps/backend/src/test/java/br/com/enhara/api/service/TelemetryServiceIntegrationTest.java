@@ -110,9 +110,9 @@ class TelemetryServiceIntegrationTest {
         var vehicle = vehicleService.create(new CreateVehicleRequest("Carro trip", "8AGZZZ377VT004255",
                 "Demo", "Trip", 2025, "TST1A05", 100));
         var trip = tripService.start(vehicle.getId());
-        telemetryService.ingest(vehicle.getId(), new TelemetryRequest(trip.getStartedAt().plusMillis(1), 20.0,
+        telemetryService.ingest(vehicle.getId(), new TelemetryRequest(trip.getStartedAt(), 20.0,
                 1500, 90.0, 35.0, 20.0, 13.8, 70.0, null, null, TelemetrySample.Source.API));
-        telemetryService.ingest(vehicle.getId(), new TelemetryRequest(trip.getStartedAt().plusMillis(2), 45.0,
+        telemetryService.ingest(vehicle.getId(), new TelemetryRequest(trip.getStartedAt(), 45.0,
                 2600, 91.0, 45.0, 30.0, 13.8, 69.0, null, null, TelemetrySample.Source.API));
 
         var finished = tripService.finish(vehicle.getId());

@@ -1,4 +1,4 @@
-import type { VehicleScenario } from '../types';
+import type { SimulatedObdSnapshot } from '../types';
 import type { ReadingListener, VehicleDataSource } from './VehicleDataSource';
 
 /** Limite explícito do MVP: integração Bluetooth/ELM327 depende de hardware e permissão nativa. */
@@ -10,6 +10,6 @@ export class BluetoothVehicleDataSource implements VehicleDataSource {
   }
 
   stop(): void {}
-  setScenario(_scenario: VehicleScenario): void {}
+  obdSnapshot(): SimulatedObdSnapshot | null { return null; }
   isRunning(): boolean { return false; }
 }

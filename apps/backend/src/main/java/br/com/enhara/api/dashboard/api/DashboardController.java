@@ -47,7 +47,8 @@ public class DashboardController {
                 telemetry.history(vehicleId, historyLimit).stream().map(TelemetryResponse::from).toList(),
                 telemetry.diagnostics(vehicleId, true).stream().map(DiagnosticResponse::from).toList(),
                 telemetry.alerts(vehicleId, true).stream().map(AlertResponse::from).toList(),
-                simulationStatus.running(), simulationStatus.scenario(), health.calculate(vehicleId),
+                simulationStatus.running(), simulationStatus.scenario(), simulation.isVehicleDataConnected(vehicleId),
+                health.calculate(vehicleId),
                 trips.active(vehicleId).map(br.com.enhara.api.shared.api.ApiModels.TripResponse::from).orElse(null),
                 trips.history(vehicleId, 8).stream().map(br.com.enhara.api.shared.api.ApiModels.TripResponse::from).toList());
     }

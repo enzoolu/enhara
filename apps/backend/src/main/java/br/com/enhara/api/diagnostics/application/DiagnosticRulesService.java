@@ -29,18 +29,19 @@ public class DiagnosticRulesService {
 
     public Evaluation evaluate(TelemetrySample sample) {
         List<Diagnostic> diagnostics = new ArrayList<>();
+        List<Diagnostic> resolvedDiagnostics = new ArrayList<>();
         List<Alert> alerts = new ArrayList<>();
 
         rules.forEach(rule -> rule.evaluate(sample).ifPresentOrElse(
                 finding -> activate(sample, rule, finding, diagnostics, alerts),
-                () -> resolve(sample, rule.code())));
+                () -> resolve(sample, rule.code(), resolvedDiagnostics)));
 
         if (sample.getFuelLevelPercent() <= properties.fuelLevelLowPercent()) {
             createAlertIfAbsent(sample, Alert.Type.LOW_FUEL, Diagnostic.Severity.WARNING, "Combustível baixo",
                     "Restam %.0f%% no tanque".formatted(sample.getFuelLevelPercent())).ifPresent(alerts::add);
         }
 
-        return new Evaluation(diagnostics, alerts);
+        return new Evaluation(diagnostics, resolvedDiagnostics, alerts);
     }
 
     private void activate(TelemetrySample sample, DiagnosticRule rule, DiagnosticRule.Finding finding,
@@ -54,9 +55,12 @@ public class DiagnosticRulesService {
                 .ifPresent(newAlerts::add);
     }
 
-    private void resolve(TelemetrySample sample, String code) {
+    private void resolve(TelemetrySample sample, String code, List<Diagnostic> resolvedDiagnostics) {
         diagnosticRepository.findFirstByVehicleIdAndCodeAndStatus(sample.getVehicleId(), code, Diagnostic.Status.ACTIVE)
-                .ifPresent(Diagnostic::resolve);
+                .ifPresent(diagnostic -> {
+                    diagnostic.resolve();
+                    resolvedDiagnostics.add(diagnostic);
+                });
     }
 
     private java.util.Optional<Alert> createAlertIfAbsent(TelemetrySample sample, Alert.Type type,
@@ -68,6 +72,6 @@ public class DiagnosticRulesService {
                 severity, title, message)));
     }
 
-    public record Evaluation(List<Diagnostic> diagnostics, List<Alert> alerts) {
+    public record Evaluation(List<Diagnostic> diagnostics, List<Diagnostic> resolvedDiagnostics, List<Alert> alerts) {
     }
 }

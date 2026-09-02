@@ -20,7 +20,7 @@ public class Vehicle {
     @Column(nullable = false, length = 80)
     private String name;
 
-    @Column(nullable = false, unique = true, length = 17)
+    @Column(unique = true, length = 17)
     private String vin;
 
     @Column(nullable = false, length = 80)
@@ -47,7 +47,7 @@ public class Vehicle {
     public Vehicle(String name, String vin, String manufacturer, String model, int year, String licensePlate,
                    double odometerKm) {
         this.name = name;
-        this.vin = vin.toUpperCase();
+        this.vin = vin == null || vin.isBlank() ? null : vin.toUpperCase();
         this.manufacturer = manufacturer;
         this.model = model;
         this.year = year;

@@ -28,7 +28,7 @@ public class Diagnostic {
     @Column(name = "telemetry_id")
     private Long telemetryId;
 
-    @Column(nullable = false, length = 16)
+    @Column(nullable = false, length = 64)
     private String code;
 
     @Column(nullable = false)

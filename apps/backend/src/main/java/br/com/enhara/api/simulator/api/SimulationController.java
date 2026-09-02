@@ -1,9 +1,11 @@
 package br.com.enhara.api.simulator.api;
 
 import br.com.enhara.api.shared.api.ApiModels.IngestionResponse;
-import br.com.enhara.api.shared.api.ApiModels.SimulationScenario;
 import br.com.enhara.api.shared.api.ApiModels.SimulationStatus;
 import br.com.enhara.api.simulator.application.SimulationService;
+import br.com.enhara.api.simulator.domain.SimulationScenario;
+import br.com.enhara.api.simulator.domain.SimulationVehicleProfile.ProfileId;
+import br.com.enhara.api.simulator.domain.StatefulVehicleSimulator;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,5 +46,15 @@ public class SimulationController {
     @PostMapping("/scenario/{scenario}")
     public SimulationStatus scenario(@PathVariable UUID vehicleId, @PathVariable SimulationScenario scenario) {
         return simulation.setScenario(vehicleId, scenario);
+    }
+
+    @PostMapping("/profile/{profile}")
+    public SimulationStatus profile(@PathVariable UUID vehicleId, @PathVariable ProfileId profile) {
+        return simulation.setProfile(vehicleId, profile);
+    }
+
+    @GetMapping("/obd")
+    public StatefulVehicleSimulator.Snapshot obdState(@PathVariable UUID vehicleId) {
+        return simulation.obdState(vehicleId);
     }
 }

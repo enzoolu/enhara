@@ -13,6 +13,10 @@ security: []
 tags:
   - name: Vehicles
     description: Cadastro e consulta de veículos
+  - name: Vehicle Profile
+    description: Identificação real, provenance, enriquecimento e fotos do veículo
+  - name: Vehicle Data
+    description: Catálogos externos usados explicitamente na identificação do veículo
   - name: Telemetry
     description: Ingestão e histórico de leituras veiculares
   - name: Alerts
@@ -21,6 +25,10 @@ tags:
     description: Achados produzidos pelas regras determinísticas
   - name: Trips
     description: Viagens e métricas experimentais de condução
+  - name: Notes
+    description: Notas e lembretes persistidos fornecidos pelo usuário
+  - name: Statistics
+    description: Métricas derivadas do histórico persistido pelo Enhara
   - name: Simulation
     description: Cenários auxiliares para demonstração local
   - name: Realtime
@@ -88,6 +96,7 @@ paths:
               schema: { $ref: "#/components/schemas/TelemetryBatchResult" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /api/vehicles/{vehicleId}/telemetry:
     parameters:
       - $ref: "#/components/parameters/VehicleId"
@@ -227,6 +236,236 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/VehicleHealth" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/profile:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    get:
+      tags: [Vehicle Profile]
+      summary: Obtém o perfil normalizado e a provenance de cada campo
+      operationId: getVehicleProfile
+      responses:
+        "200":
+          description: Cadastro persistido, dados externos armazenados e status dos providers
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VehicleProfile" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/profile/manual:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    put:
+      tags: [Vehicle Profile]
+      summary: Corrige campos do perfil com dados fornecidos pelo usuário
+      operationId: updateVehicleProfileManually
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ManualVehicleProfileInput" }
+      responses:
+        "200":
+          description: Perfil atualizado; campos alterados recebem provenance USER_PROVIDED
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VehicleProfile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/profile/confirm:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    post:
+      tags: [Vehicle Profile]
+      summary: Confirma campos obtidos de fontes externas ou OBD real
+      operationId: confirmVehicleProfileFields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConfirmVehicleProfileInput" }
+      responses:
+        "200":
+          description: Perfil com confirmação registrada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VehicleProfile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/profile/enrich:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    post:
+      tags: [Vehicle Profile]
+      summary: Enriquece o perfil por VIN e, quando solicitado, FIPE
+      description: Reutiliza o cache persistente; falhas dos providers não impedem a leitura do perfil.
+      operationId: enrichVehicleProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VehicleProfileEnrichmentInput" }
+      responses:
+        "200":
+          description: Perfil enriquecido ou preservado com status de indisponibilidade/cache
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VehicleProfile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/profile/ecu-vin:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    post:
+      tags: [Vehicle Profile]
+      summary: Registra VIN observado por um adaptador OBD real
+      description: A ECU simulada não possui caminho para este endpoint.
+      operationId: recordRealObdVin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RealObdVinInput" }
+      responses:
+        "200":
+          description: Perfil com VIN observado via OBD real
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VehicleProfile" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/photos:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    get:
+      tags: [Vehicle Profile]
+      summary: Lista fotos persistidas fornecidas pelo usuário
+      operationId: listVehiclePhotos
+      responses:
+        "200":
+          description: Metadados das fotos da mais recente para a mais antiga
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VehiclePhoto" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Vehicle Profile]
+      summary: Armazena uma foto JPEG ou PNG fornecida pelo usuário
+      operationId: uploadVehiclePhoto
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                caption: { type: string, maxLength: 240 }
+      responses:
+        "201":
+          description: Foto persistida
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VehiclePhoto" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/photos/{photoId}:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+      - $ref: "#/components/parameters/PhotoId"
+    delete:
+      tags: [Vehicle Profile]
+      summary: Exclui uma foto fornecida pelo usuário
+      operationId: deleteVehiclePhoto
+      responses:
+        "204": { description: Foto excluída }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/photos/{photoId}/content:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+      - $ref: "#/components/parameters/PhotoId"
+    get:
+      tags: [Vehicle Profile]
+      summary: Obtém o conteúdo persistido de uma foto
+      operationId: getVehiclePhotoContent
+      responses:
+        "200":
+          description: Conteúdo JPEG ou PNG
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicle-data/fipe/brands:
+    get:
+      tags: [Vehicle Data]
+      summary: Lista marcas reais disponíveis no catálogo FIPE
+      operationId: listFipeBrands
+      parameters:
+        - $ref: "#/components/parameters/FipeVehicleType"
+      responses:
+        "200":
+          description: Marcas retornadas pela BrasilAPI
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FipeOption" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "503": { $ref: "#/components/responses/ProviderUnavailable" }
+  /api/vehicle-data/fipe/brands/{brandCode}/models:
+    get:
+      tags: [Vehicle Data]
+      summary: Lista modelos/versões FIPE de uma marca
+      operationId: listFipeModels
+      parameters:
+        - $ref: "#/components/parameters/FipeVehicleType"
+        - $ref: "#/components/parameters/FipeBrandCode"
+      responses:
+        "200":
+          description: Modelos retornados pela BrasilAPI
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FipeOption" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "503": { $ref: "#/components/responses/ProviderUnavailable" }
+  /api/vehicle-data/fipe/brands/{brandCode}/models/{modelCode}/years:
+    get:
+      tags: [Vehicle Data]
+      summary: Lista combinações de ano e combustível de um modelo FIPE
+      operationId: listFipeYears
+      parameters:
+        - $ref: "#/components/parameters/FipeVehicleType"
+        - $ref: "#/components/parameters/FipeBrandCode"
+        - $ref: "#/components/parameters/FipeModelCode"
+      responses:
+        "200":
+          description: Anos e combustíveis retornados pela BrasilAPI
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FipeOption" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "503": { $ref: "#/components/responses/ProviderUnavailable" }
+  /api/vehicles/{vehicleId}/statistics:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    get:
+      tags: [Statistics]
+      summary: Retorna métricas derivadas exclusivamente dos dados registrados pelo Enhara
+      operationId: getVehicleStatistics
+      responses:
+        "200":
+          description: Distância, máxima observada e disponibilidade de consumo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VehicleStatistics" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/vehicles/{vehicleId}/trips:
     parameters:
       - $ref: "#/components/parameters/VehicleId"
@@ -292,6 +531,101 @@ paths:
               schema: { $ref: "#/components/schemas/Trip" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /api/vehicles/{vehicleId}/notes:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    get:
+      tags: [Notes]
+      summary: Lista notas e lembretes cadastrados pelo usuário
+      operationId: listVehicleNotes
+      parameters:
+        - name: includeCompleted
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Notas ordenadas pela última alteração
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VehicleNote" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Notes]
+      summary: Cadastra uma nota ou lembrete fornecido pelo usuário
+      operationId: createVehicleNote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VehicleNoteInput" }
+      responses:
+        "201":
+          description: Nota criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VehicleNote" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/notes/{noteId}:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+      - $ref: "#/components/parameters/NoteId"
+    put:
+      tags: [Notes]
+      summary: Edita uma nota cadastrada pelo usuário
+      operationId: updateVehicleNote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VehicleNoteInput" }
+      responses:
+        "200":
+          description: Nota atualizada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VehicleNote" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Notes]
+      summary: Exclui uma nota cadastrada pelo usuário
+      operationId: deleteVehicleNote
+      responses:
+        "204": { description: Nota excluída }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/notes/{noteId}/complete:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+      - $ref: "#/components/parameters/NoteId"
+    post:
+      tags: [Notes]
+      summary: Marca uma nota ou lembrete como concluído
+      operationId: completeVehicleNote
+      responses:
+        "200":
+          description: Nota concluída
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VehicleNote" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/notes/{noteId}/reopen:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+      - $ref: "#/components/parameters/NoteId"
+    post:
+      tags: [Notes]
+      summary: Reabre uma nota ou lembrete concluído
+      operationId: reopenVehicleNote
+      responses:
+        "200":
+          description: Nota reaberta
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VehicleNote" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/vehicles/{vehicleId}/events:
     parameters:
       - $ref: "#/components/parameters/VehicleId"
@@ -333,6 +667,21 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SimulationStatus" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/simulation/obd:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+    get:
+      tags: [Simulation]
+      summary: Consulta capabilities e estado atual da ECU/OBD simulada
+      description: DTCs deste recurso pertencem à ECU simulada e não são findings nem alertas do Enhara.
+      operationId: getSimulatedObdState
+      responses:
+        "200":
+          description: Snapshot da sessão OBD simulada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulatedObdSnapshot" }
         "404": { $ref: "#/components/responses/NotFound" }
   /api/vehicles/{vehicleId}/simulation/stop:
     parameters:
@@ -379,6 +728,26 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SimulationStatus" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/vehicles/{vehicleId}/simulation/profile/{profile}:
+    parameters:
+      - $ref: "#/components/parameters/VehicleId"
+      - name: profile
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/SimulationProfile" }
+    post:
+      tags: [Simulation]
+      summary: Reinicia a ECU simulada com outro perfil de capabilities
+      operationId: setSimulationProfile
+      responses:
+        "200":
+          description: Perfil selecionado e estado reiniciado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulationStatus" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
 components:
   parameters:
@@ -387,6 +756,30 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    NoteId:
+      name: noteId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PhotoId:
+      name: photoId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    FipeVehicleType:
+      name: vehicleType
+      in: query
+      schema: { $ref: "#/components/schemas/FipeVehicleType", default: CAR }
+    FipeBrandCode:
+      name: brandCode
+      in: path
+      required: true
+      schema: { type: string, pattern: "^[0-9]+$" }
+    FipeModelCode:
+      name: modelCode
+      in: path
+      required: true
+      schema: { type: string, pattern: "^[0-9]+$" }
   responses:
     BadRequest:
       description: Requisição inválida
@@ -403,15 +796,23 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ApiError" }
+    ProviderUnavailable:
+      description: Provider externo indisponível; o restante da API permanece funcional
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
   schemas:
     CreateVehicle:
       type: object
       additionalProperties: false
       required:
-        [name, vin, manufacturer, model, modelYear, licensePlate, odometerKm]
+        [name, manufacturer, model, modelYear, licensePlate, odometerKm]
       properties:
         name: { type: string, maxLength: 80, examples: [Enhara Demo Car] }
-        vin: { type: string, pattern: "^[A-HJ-NPR-Z0-9]{17}$" }
+        vin:
+          type: [string, "null"]
+          pattern: "^[A-HJ-NPR-Z0-9]{17}$"
+          description: Opcional; pode ser informado manualmente ou observado posteriormente por OBD real.
         manufacturer: { type: string, maxLength: 80 }
         model: { type: string, maxLength: 80 }
         modelYear: { type: integer, minimum: 1886, maximum: 2100 }
@@ -425,6 +826,137 @@ components:
           properties:
             id: { type: string, format: uuid }
             createdAt: { type: string, format: date-time }
+    VehicleProfileKey:
+      type: string
+      enum:
+        [VIN, MANUFACTURER, MODEL, MODEL_YEAR, VERSION, ENGINE, FUEL_TYPE, TRANSMISSION,
+         FIPE_CODE, FIPE_VALUE, FIPE_REFERENCE_MONTH]
+    VehicleProfileSource:
+      type: string
+      enum: [VEHICLE_REGISTRATION, ECU_OBD, BRASILAPI_FIPE, NHTSA_VPIC, USER_PROVIDED]
+      description: ECU_OBD é aceito somente no boundary de um adaptador OBD real; providers externos têm fontes próprias.
+    VehicleProviderState:
+      type: string
+      enum: [LIVE, CACHE_FRESH, CACHE_STALE, UNAVAILABLE, CONFLICT, NOT_REQUESTED]
+    VehicleFieldProvenance:
+      type: object
+      required: [source, retrievedAt, cached, stale]
+      properties:
+        source: { $ref: "#/components/schemas/VehicleProfileSource" }
+        provider: { type: [string, "null"] }
+        sourceUrl: { type: [string, "null"], format: uri }
+        observedAt: { type: [string, "null"], format: date-time }
+        retrievedAt: { type: string, format: date-time }
+        cacheExpiresAt: { type: [string, "null"], format: date-time }
+        cached: { type: boolean }
+        stale: { type: boolean }
+        confirmedAt: { type: [string, "null"], format: date-time }
+    VehicleProfileField:
+      type: object
+      required: [key, value, provenance]
+      properties:
+        key: { $ref: "#/components/schemas/VehicleProfileKey" }
+        value: { type: string, maxLength: 512 }
+        provenance: { $ref: "#/components/schemas/VehicleFieldProvenance" }
+    VehicleProviderStatus:
+      type: object
+      required: [provider, state, message, checkedAt]
+      properties:
+        provider: { type: string }
+        state: { $ref: "#/components/schemas/VehicleProviderState" }
+        message: { type: string }
+        checkedAt: { type: string, format: date-time }
+        dataFetchedAt: { type: [string, "null"], format: date-time }
+    VehicleProfile:
+      type: object
+      required: [vehicleId, fields, providers, updatedAt]
+      properties:
+        vehicleId: { type: string, format: uuid }
+        fields:
+          type: array
+          items: { $ref: "#/components/schemas/VehicleProfileField" }
+        providers:
+          type: array
+          items: { $ref: "#/components/schemas/VehicleProviderStatus" }
+        updatedAt: { type: string, format: date-time }
+    ManualVehicleProfileInput:
+      type: object
+      additionalProperties: false
+      required: [fields]
+      properties:
+        fields:
+          type: object
+          minProperties: 1
+          additionalProperties: { type: string, minLength: 1, maxLength: 512 }
+          description: Chaves válidas são as definidas em VehicleProfileKey.
+    ConfirmVehicleProfileInput:
+      type: object
+      additionalProperties: false
+      required: [fields]
+      properties:
+        fields:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/VehicleProfileKey" }
+    FipeVehicleType:
+      type: string
+      enum: [CAR, MOTORCYCLE, TRUCK]
+    FipeOption:
+      type: object
+      required: [code, label]
+      properties:
+        code: { type: string }
+        label: { type: string }
+    FipeSelection:
+      type: object
+      additionalProperties: false
+      required: [vehicleType, brandCode, modelCode, yearCode]
+      properties:
+        vehicleType: { $ref: "#/components/schemas/FipeVehicleType" }
+        brandCode: { type: string, pattern: "^[0-9]+$" }
+        modelCode: { type: string, pattern: "^[0-9]+$" }
+        yearCode: { type: string, pattern: "^[0-9]{4,5}-[0-9]+$" }
+    VehicleProfileEnrichmentInput:
+      type: object
+      additionalProperties: false
+      required: [forceRefresh]
+      properties:
+        fipeCode:
+          type: [string, "null"]
+          pattern: "^[0-9]{6}-[0-9]$"
+        fipeSelection:
+          oneOf:
+            - $ref: "#/components/schemas/FipeSelection"
+            - type: "null"
+        forceRefresh: { type: boolean, default: false }
+      description: fipeCode e fipeSelection são mutuamente exclusivos; ambos podem ser nulos para consultar somente VIN.
+    RealObdVinInput:
+      type: object
+      additionalProperties: false
+      required: [vin, source]
+      properties:
+        vin: { type: string, pattern: "^[A-HJ-NPR-Z0-9]{17}$" }
+        observedAt: { type: [string, "null"], format: date-time }
+        source: { type: string, const: REAL_OBD }
+    VehiclePhoto:
+      type: object
+      required:
+        [id, vehicleId, originalFilename, mediaType, sizeBytes, widthPixels, heightPixels,
+         createdAt, source, contentPath]
+      properties:
+        id: { type: string, format: uuid }
+        vehicleId: { type: string, format: uuid }
+        originalFilename: { type: string }
+        mediaType: { type: string, enum: [image/jpeg, image/png] }
+        sizeBytes: { type: integer, format: int64, minimum: 1, maximum: 5242880 }
+        widthPixels: { type: integer, minimum: 1, maximum: 12000 }
+        heightPixels: { type: integer, minimum: 1, maximum: 12000 }
+        caption: { type: [string, "null"], maxLength: 240 }
+        createdAt: { type: string, format: date-time }
+        source: { type: string, const: USER_PROVIDED }
+        contentPath: { type: string }
+      description: Conteúdo e metadados persistidos com origem USER_PROVIDED.
     TelemetryInput:
       type: object
       additionalProperties: false
@@ -454,7 +986,7 @@ components:
         fuelLevelPercent: { type: number, minimum: 0, maximum: 100 }
         latitude: { type: [number, "null"], minimum: -90, maximum: 90 }
         longitude: { type: [number, "null"], minimum: -180, maximum: 180 }
-        source: { type: string, enum: [SIMULATOR, MOBILE, API], default: API }
+        source: { type: string, enum: [SIMULATED_OBD, SIMULATOR, MOBILE, API], default: API }
     Telemetry:
       allOf:
         - $ref: "#/components/schemas/TelemetryInput"
@@ -474,6 +1006,11 @@ components:
           minItems: 1
           maxItems: 200
           items: { $ref: "#/components/schemas/TelemetryInput" }
+        obdSnapshot:
+          description: Snapshot da mesma ECU simulada que produziu o batch; mantém capabilities e memória OBD no fluxo integrado.
+          oneOf:
+            - $ref: "#/components/schemas/SimulatedObdSnapshot"
+            - type: "null"
     IngestionResult:
       type: object
       required: [telemetry, diagnostics, newAlerts]
@@ -544,6 +1081,7 @@ components:
           openAlerts,
           simulationRunning,
           simulationScenario,
+          vehicleDataConnected,
           health,
           activeTrip,
           recentTrips,
@@ -565,6 +1103,7 @@ components:
           items: { $ref: "#/components/schemas/Alert" }
         simulationRunning: { type: boolean }
         simulationScenario: { $ref: "#/components/schemas/SimulationScenario" }
+        vehicleDataConnected: { type: boolean }
         health: { $ref: "#/components/schemas/VehicleHealth" }
         activeTrip:
           oneOf:
@@ -611,17 +1150,196 @@ components:
           maximum: 100
           description: Indicador experimental e determinístico do MVP.
         experimentalMetrics: { type: boolean, const: true }
+    ConsumptionAvailability:
+      type: string
+      enum: [AVAILABLE, INSUFFICIENT_DATA]
+    VehicleStatistics:
+      type: object
+      required:
+        [distanceTrackedKm, maxRecordedSpeedKph, averageConsumptionKmPerLiter,
+         consumptionAvailability, completedTrips]
+      properties:
+        distanceTrackedKm:
+          type: number
+          minimum: 0
+          description: Soma das distâncias das viagens concluídas e registradas pelo Enhara.
+        maxRecordedSpeedKph:
+          type: [number, "null"]
+          minimum: 0
+          description: Maior velocidade em telemetria persistida; nulo sem leitura válida.
+        averageConsumptionKmPerLiter:
+          type: [number, "null"]
+          minimum: 0
+          description: Nulo enquanto não houver série suficiente de combustível consumido.
+        consumptionAvailability: { $ref: "#/components/schemas/ConsumptionAvailability" }
+        completedTrips: { type: integer, format: int64, minimum: 0 }
+    VehicleNoteCategory:
+      type: string
+      enum: [MAINTENANCE, DOCUMENTATION, GENERAL]
+    VehicleNoteStatus:
+      type: string
+      enum: [OPEN, COMPLETED]
+    VehicleNoteInput:
+      type: object
+      additionalProperties: false
+      required: [title, description, category]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, minLength: 1, maxLength: 1000 }
+        category: { $ref: "#/components/schemas/VehicleNoteCategory" }
+        dueAt: { type: [string, "null"], format: date-time }
+    VehicleNote:
+      allOf:
+        - $ref: "#/components/schemas/VehicleNoteInput"
+        - type: object
+          required: [id, vehicleId, status, overdue, createdAt, updatedAt]
+          properties:
+            id: { type: string, format: uuid }
+            vehicleId: { type: string, format: uuid }
+            status: { $ref: "#/components/schemas/VehicleNoteStatus" }
+            overdue: { type: boolean }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+            completedAt: { type: [string, "null"], format: date-time }
     SimulationScenario:
       type: string
-      enum: [NORMAL, OVERHEAT, LOW_BATTERY]
+      enum: [NORMAL, OVERHEAT, LOW_VOLTAGE, MISFIRE, LOW_BATTERY]
+      description: LOW_BATTERY é alias legado; clientes novos devem usar LOW_VOLTAGE.
+    SimulationProfile:
+      type: string
+      enum: [COMPACT_GASOLINE, COMPACT_GASOLINE_LIMITED]
     SimulationStatus:
       type: object
-      required: [vehicleId, running, scenario, generatedSamples]
+      required: [vehicleId, running, scenario, generatedSamples, profile]
       properties:
         vehicleId: { type: string, format: uuid }
         running: { type: boolean }
         scenario: { $ref: "#/components/schemas/SimulationScenario" }
         generatedSamples: { type: integer, format: int64, minimum: 0 }
+        profile: { $ref: "#/components/schemas/SimulationProfile" }
+    ObdCapabilityStatus:
+      type: string
+      enum: [SUPPORTED, UNSUPPORTED, UNKNOWN]
+    ObdAvailabilityStatus:
+      type: string
+      enum: [SUPPORTED, SUPPORTED_NO_DATA, UNSUPPORTED, UNKNOWN, STALE]
+    ObdCapability:
+      type: object
+      required: [key, service, pid, status, availability]
+      properties:
+        key: { type: string }
+        service: { type: string, pattern: "^[0-9A-F]{2}$" }
+        pid: { type: string, pattern: "^[0-9A-F]{2}$" }
+        unit: { type: [string, "null"] }
+        status: { $ref: "#/components/schemas/ObdCapabilityStatus" }
+        availability: { $ref: "#/components/schemas/ObdAvailabilityStatus" }
+    ObdLivePidValue:
+      type: object
+      required: [key, service, pid, value, unit, availability, observedAt]
+      properties:
+        key: { type: string }
+        service: { type: string, pattern: "^[0-9A-F]{2}$" }
+        pid: { type: string, pattern: "^[0-9A-F]{2}$" }
+        value: { type: number }
+        unit: { type: string }
+        availability: { $ref: "#/components/schemas/ObdAvailabilityStatus" }
+        observedAt: { type: string, format: date-time }
+    SimulatedDriverInput:
+      type: object
+      required: [throttlePercent, brakePercent]
+      properties:
+        throttlePercent: { type: number, minimum: 0, maximum: 100 }
+        brakePercent: { type: number, minimum: 0, maximum: 100 }
+    SimulatedVehicleState:
+      type: object
+      required:
+        [speedKph, rpm, gear, shifting, engineLoadPercent, coolantTemperatureC,
+         intakeAirTemperatureC, controlModuleVoltage, fuelLevelPercent]
+      properties:
+        speedKph: { type: number, minimum: 0 }
+        rpm: { type: integer, minimum: 0 }
+        gear: { type: integer, minimum: 1 }
+        shifting: { type: boolean }
+        shiftedFromGear: { type: [integer, "null"], minimum: 1 }
+        shiftedToGear: { type: [integer, "null"], minimum: 1 }
+        engineLoadPercent: { type: number, minimum: 0, maximum: 100 }
+        coolantTemperatureC: { type: number }
+        intakeAirTemperatureC: { type: number }
+        controlModuleVoltage: { type: number, minimum: 0 }
+        fuelLevelPercent: { type: number, minimum: 0, maximum: 100 }
+    ObdFreezeFrame:
+      type: object
+      required: [capturedAt, values]
+      properties:
+        capturedAt: { type: string, format: date-time }
+        values:
+          type: array
+          items: { $ref: "#/components/schemas/ObdLivePidValue" }
+    ObdDtcStatus:
+      type: string
+      enum: [PENDING, CONFIRMED, PERMANENT]
+    SimulatedObdDtc:
+      type: object
+      required: [code, description, statuses, active, firstDetectedAt, lastDetectedAt]
+      properties:
+        code: { type: string, pattern: "^[PBCU][0-9A-F]{4}$" }
+        description: { type: string }
+        statuses:
+          type: array
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/ObdDtcStatus" }
+        active: { type: boolean }
+        firstDetectedAt: { type: string, format: date-time }
+        lastDetectedAt: { type: string, format: date-time }
+        freezeFrame:
+          oneOf:
+            - $ref: "#/components/schemas/ObdFreezeFrame"
+            - type: "null"
+    ObdReadiness:
+      type: object
+      required: [monitor, status]
+      properties:
+        monitor:
+          type: string
+          enum: [MISFIRE, FUEL_SYSTEM, COMPREHENSIVE_COMPONENT, CATALYST, OXYGEN_SENSOR]
+        status:
+          type: string
+          enum: [READY, NOT_READY, NOT_SUPPORTED]
+    SimulatedVehicleInformation:
+      type: object
+      required: [vin, source]
+      properties:
+        vin: { type: string, pattern: "^[A-HJ-NPR-Z0-9]{17}$" }
+        source: { type: string, const: SIMULATED_OBD }
+    SimulatedObdSnapshot:
+      type: object
+      required:
+        [profile, scenario, capabilities, driverInput, vehicleState, liveData, dtcs,
+         milOn, readiness, elapsedSeconds]
+      properties:
+        profile: { $ref: "#/components/schemas/SimulationProfile" }
+        scenario: { $ref: "#/components/schemas/SimulationScenario" }
+        capabilities:
+          type: array
+          items: { $ref: "#/components/schemas/ObdCapability" }
+        driverInput: { $ref: "#/components/schemas/SimulatedDriverInput" }
+        vehicleState: { $ref: "#/components/schemas/SimulatedVehicleState" }
+        liveData:
+          type: array
+          items: { $ref: "#/components/schemas/ObdLivePidValue" }
+        dtcs:
+          type: array
+          description: Códigos mantidos pela ECU simulada; não são findings do Enhara.
+          items: { $ref: "#/components/schemas/SimulatedObdDtc" }
+        milOn: { type: boolean }
+        readiness:
+          type: array
+          items: { $ref: "#/components/schemas/ObdReadiness" }
+        vehicleInformation:
+          oneOf:
+            - $ref: "#/components/schemas/SimulatedVehicleInformation"
+            - type: "null"
+        elapsedSeconds: { type: integer, format: int64, minimum: 0 }
     ApiError:
       type: object
       required: [timestamp, status, error, message, path, fieldErrors]

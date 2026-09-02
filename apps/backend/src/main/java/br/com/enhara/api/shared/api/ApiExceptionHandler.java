@@ -3,6 +3,7 @@ package br.com.enhara.api.shared.api;
 import br.com.enhara.api.shared.error.ConflictException;
 import br.com.enhara.api.shared.error.ResourceNotFoundException;
 import br.com.enhara.api.shared.api.ApiModels.ApiError;
+import br.com.enhara.api.vehicle.application.provider.VehicleProviderException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -46,6 +47,16 @@ public class ApiExceptionHandler {
     ResponseEntity<ApiError> typeMismatch(MethodArgumentTypeMismatchException exception,
                                            HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, "Parâmetro inválido: " + exception.getName(), request, Map.of());
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    ResponseEntity<ApiError> illegalArgument(IllegalArgumentException exception, HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, exception.getMessage(), request, Map.of());
+    }
+
+    @ExceptionHandler(VehicleProviderException.class)
+    ResponseEntity<ApiError> providerUnavailable(VehicleProviderException exception, HttpServletRequest request) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage(), request, Map.of());
     }
 
     private ResponseEntity<ApiError> error(HttpStatus status, String message, HttpServletRequest request,

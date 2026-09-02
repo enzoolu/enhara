@@ -2,7 +2,9 @@
 
 MVP local de assistência veicular conectada. Uma ECU simulada no aplicativo móvel produz telemetria; a API persiste as leituras, aplica regras determinísticas e transmite diagnósticos, alertas e saúde do veículo via SSE para o dashboard.
 
-![Dashboard Enhara durante o cenário OVERHEAT](docs/cp1/dashboard.png)
+![Painel Principal do Enhara com último estado válido](docs/cp1/dashboard.png)
+
+![Minhas Estatísticas do Enhara com dados registrados](docs/cp1/statistics.png)
 
 ## Demo rápida no Windows
 
@@ -12,7 +14,7 @@ Pré-requisitos já instalados: Java 21+ e Node.js/npm. Depois de executar `npm 
 .\reset-demo.cmd
 ```
 
-Esse único comando zera o H2, inicia backend e web, cria o veículo fictício e deixa o cenário `NORMAL` ativo.
+Esse único comando zera o H2 e as fotos da demo, inicia backend e web, cria o veículo fictício e deixa o cenário `NORMAL` ativo. `start-demo.cmd` preserva o H2 e as fotos entre reinicializações normais; use `reset-demo.cmd` quando quiser limpar o estado.
 
 - Dashboard: http://127.0.0.1:5173
 - Health: http://127.0.0.1:8080/actuator/health
@@ -35,9 +37,11 @@ O roteiro completo e o troubleshooting estão em [docs/cp1/demo.md](docs/cp1/dem
 - Regras explicáveis: `ENGINE_TEMPERATURE_HIGH`, `BATTERY_VOLTAGE_LOW` e `ENGINE_OVERSPEED`, sem inferir causa mecânica.
 - Saúde do veículo calculada no backend (`GOOD`, `ATTENTION`, `CRITICAL`, score e explicação observada).
 - Trips com início/fim, persistência, distância, velocidades média/máxima e métricas experimentais de condução.
-- Dashboard React responsivo com instrumentos, gráfico temporal, conexão/freshness, alertas, saúde e histórico de viagens.
-- Mobile Expo com `VehicleDataSource`, Mock ECU gradual, `NORMAL`, `OVERHEAT`, `LOW_BATTERY`, batching, feedback de conexão/envio, saúde e viagens.
-- Flyway v1/v2, OpenAPI 3.1, testes JUnit/Vitest/Playwright, Dockerfiles, Compose e CI.
+- Dashboard React responsivo com Painel Principal e Minhas Estatísticas, cards OBD personalizáveis por capability, estado atual/último válido, DTCs, atividade, notas persistidas e históricos sem dados artificiais.
+- Meu Carro com cadastro manual, VIN opcional/OBD real, BrasilAPI/FIPE guiada, NHTSA vPIC, provenance por campo, cache offline e fotos persistidas do usuário; sem especificações inventadas.
+- Mobile Expo com `VehicleDataSource`, ECU/OBD stateful, `NORMAL`, `OVERHEAT`, `LOW_VOLTAGE`, `MISFIRE`, batching, feedback de conexão/envio, saúde e viagens.
+- Perfis simulados com capabilities variáveis, live PIDs, DTC pending/confirmed/permanent, MIL, freeze frame, readiness e Vehicle Information quando suportada.
+- Flyway v1–v4, OpenAPI 3.1, testes JUnit/Vitest/Playwright, Dockerfiles, Compose e CI.
 - Fluxo H2 comprovado: `NORMAL -> OVERHEAT -> diagnóstico -> alerta via SSE -> Health crítico -> viagem finalizada`.
 
 A matriz de evidências desta rodada está em [docs/cp1/evidence.md](docs/cp1/evidence.md).
@@ -48,7 +52,7 @@ A matriz de evidências desta rodada está em [docs/cp1/evidence.md](docs/cp1/ev
 - A classe `BluetoothVehicleDataSource` mantém o ponto de extensão, porém Bluetooth/ELM327 físico ainda não está integrado.
 - As métricas de condução são indicadores determinísticos experimentais do MVP, não medições de precisão científica.
 - Autenticação está aberta localmente; Spring Security protege apenas o restante da superfície fora dos endpoints explicitamente públicos do MVP.
-- A localização exibida usa coordenadas da telemetria simulada, não GPS físico validado.
+- Os simuladores não fabricam coordenadas; localização só aparece quando uma fonte real enviar GPS válido.
 
 ## Roadmap
 
@@ -57,6 +61,7 @@ A matriz de evidências desta rodada está em [docs/cp1/evidence.md](docs/cp1/ev
 - Autenticação/autorização por proprietário e políticas LGPD.
 - GPS real, trajetos em mapa e calibração das métricas de condução com dados controlados.
 - Notificações e manutenção preventiva depois da validação do fluxo central.
+- Consumo médio somente quando a telemetria tiver combustível consumido ou fuel rate com cobertura validada.
 
 ## Stack e arquitetura
 
@@ -104,10 +109,16 @@ No emulador Android, o padrão é `http://10.0.2.2:8080`; iOS usa `localhost`. E
 - `POST /api/telemetry/batches`
 - `GET /api/vehicles/{vehicleId}/telemetry/latest|history`
 - `GET /api/vehicles/{vehicleId}/dashboard|health`
+- `GET /api/vehicles/{vehicleId}/statistics`
+- `GET|POST|PUT|DELETE /api/vehicles/{vehicleId}/notes...`
+- `GET|PUT|POST /api/vehicles/{vehicleId}/profile...`
+- `GET|POST|DELETE /api/vehicles/{vehicleId}/photos...`
+- `GET /api/vehicle-data/fipe/...` para o fluxo guiado Marca → Modelo/Versão → Ano/Combustível
 - `GET|POST /api/vehicles/{vehicleId}/trips...`
 - `GET /api/vehicles/{vehicleId}/diagnostics|alerts|events`
 - `PATCH /api/alerts/{alertId}/acknowledge`
 - `GET|POST /api/vehicles/{vehicleId}/simulation...`
+- `GET /api/vehicles/{vehicleId}/simulation/obd` para o snapshot técnico da ECU simulada
 
 O contrato completo está em [contracts/openapi.yaml](contracts/openapi.yaml).
 
@@ -136,7 +147,7 @@ npx --yes @redocly/cli@2.49.0 lint contracts/openapi.yaml
 
 - `apps/backend` — monólito modular, migrations e testes.
 - `apps/web` — dashboard React/Vite.
-- `apps/mobile` — Expo/React Native, `VehicleDataSource`, Mock ECU e batching.
+- `apps/mobile` — Expo/React Native, `VehicleDataSource`, ECU/OBD simulada stateful e batching.
 - `packages/shared-types` e `packages/api-client` — contrato TypeScript compartilhado.
 - `contracts/openapi.yaml` — fonte de verdade da API.
 - `docs` — arquitetura, ADRs, roteiro e evidências do CP1.
